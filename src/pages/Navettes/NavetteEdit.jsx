@@ -4,10 +4,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import navetteService from "../../services/navetteService";
 import comptabiliteService from "../../services/comptabiliteService";
+import api from "../../services/api";
 import {
   FaArrowLeft,
   FaSave,
-  FaTruck,
   FaMapMarkerAlt,
   FaClock,
   FaCalendarAlt,
@@ -23,7 +23,11 @@ const NavetteEdit = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [chauffeurs, setChauffeurs] = useState([]);
+  const [livreurs, setLivreurs] = useState([]);
+  const [loadingLivreurs, setLoadingLivreurs] = useState(false);
+  const [colisDeLaNavette, setColisDeLaNavette] = useState([]);
+  
+  // Liste des wilayas (identique)
   const [wilayas] = useState([
     { code: "01", nom: "Adrar" },
     { code: "02", nom: "Chlef" },
@@ -91,7 +95,7 @@ const NavetteEdit = () => {
     wilaya_transit_id: "",
     date_depart: "",
     heure_depart: "",
-    chauffeur_id: "",
+    livreur_id: "", // Changé de chauffeur_id à livreur_id
     vehicule_immatriculation: "",
     capacite_max: 100,
     prix_base: 300,
@@ -102,14 +106,19 @@ const NavetteEdit = () => {
 
   useEffect(() => {
     fetchNavette();
-    fetchChauffeurs();
+    fetchLivreurs(); // Renommé
   }, [id]);
 
+  // Récupérer les détails de la navette
   const fetchNavette = async () => {
     try {
       setLoading(true);
       const response = await navetteService.getNavetteById(id);
-      const navette = response.data;
+      
+      // Adapter selon la structure de la réponse
+      const navette = response.data?.data || response.data || response;
+      
+      console.log("Navette chargée:", navette);
 
       setFormData({
         wilaya_depart_id: navette.wilaya_depart_id || "",
@@ -119,7 +128,7 @@ const NavetteEdit = () => {
           ? navette.date_depart.split("T")[0]
           : "",
         heure_depart: navette.heure_depart || "08:00",
-        chauffeur_id: navette.chauffeur_id || "",
+        livreur_id: navette.livreur_id || navette.chauffeur_id || "", // Changé
         vehicule_immatriculation: navette.vehicule_immatriculation || "",
         capacite_max: navette.capacite_max || 100,
         prix_base: navette.prix_base || 300,
@@ -127,6 +136,12 @@ const NavetteEdit = () => {
         notes: navette.notes || "",
         status: navette.status || "planifiee",
       });
+
+      // Récupérer les colis de la navette
+      if (navette.colis && Array.isArray(navette.colis)) {
+        setColisDeLaNavette(navette.colis);
+      }
+      
     } catch (error) {
       console.error("Erreur chargement navette:", error);
       toast.error("Erreur lors du chargement de la navette");
@@ -136,12 +151,26 @@ const NavetteEdit = () => {
     }
   };
 
-  const fetchChauffeurs = async () => {
+  // Récupérer les livreurs disponibles
+  const fetchLivreurs = async () => {
     try {
-      const response = await navetteService.getChauffeursDisponibles();
-      setChauffeurs(response.data?.data || []);
+      setLoadingLivreurs(true);
+      const response = await navetteService.getLivreursDisponibles();
+      
+      let livreursData = [];
+      if (response.data?.data) {
+        livreursData = response.data.data;
+      } else if (response.data) {
+        livreursData = response.data;
+      } else if (Array.isArray(response)) {
+        livreursData = response;
+      }
+      
+      setLivreurs(livreursData);
     } catch (error) {
-      console.error("Erreur chargement chauffeurs:", error);
+      console.error("Erreur chargement livreurs:", error);
+    } finally {
+      setLoadingLivreurs(false);
     }
   };
 
@@ -153,6 +182,7 @@ const NavetteEdit = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Validation
     if (!formData.wilaya_arrivee_id) {
       toast.error("Veuillez sélectionner une wilaya d'arrivée");
       return;
@@ -161,15 +191,42 @@ const NavetteEdit = () => {
     try {
       setSaving(true);
 
-      const response = await navetteService.updateNavette(id, formData);
+      // Préparer les données avec livreur_id
+      const dataToSend = {
+        wilaya_depart_id: formData.wilaya_depart_id,
+        wilaya_arrivee_id: formData.wilaya_arrivee_id,
+        wilaya_transit_id: formData.wilaya_transit_id || null,
+        date_depart: formData.date_depart,
+        heure_depart: formData.heure_depart,
+        livreur_id: formData.livreur_id || null, // Changé
+        vehicule_immatriculation: formData.vehicule_immatriculation || null,
+        capacite_max: parseInt(formData.capacite_max),
+        prix_base: parseFloat(formData.prix_base),
+        prix_par_colis: parseFloat(formData.prix_par_colis),
+        notes: formData.notes || null,
+        status: formData.status,
+      };
+
+      console.log("Données envoyées:", dataToSend);
+
+      const response = await navetteService.updateNavette(id, dataToSend);
 
       toast.success("Navette mise à jour avec succès");
       navigate(`/navettes/${id}`);
+      
     } catch (error) {
       console.error("Erreur mise à jour navette:", error);
-      toast.error(
-        error.response?.data?.message || "Erreur lors de la mise à jour",
-      );
+      
+      if (error.response?.data?.errors) {
+        const errors = error.response.data.errors;
+        Object.keys(errors).forEach(key => {
+          toast.error(`${key}: ${errors[key].join(', ')}`);
+        });
+      } else {
+        toast.error(
+          error.response?.data?.message || "Erreur lors de la mise à jour",
+        );
+      }
     } finally {
       setSaving(false);
     }
@@ -320,6 +377,7 @@ const NavetteEdit = () => {
                     name="date_depart"
                     value={formData.date_depart}
                     onChange={handleChange}
+                    min={new Date().toISOString().split("T")[0]}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
                     required
                   />
@@ -345,31 +403,36 @@ const NavetteEdit = () => {
             </div>
           </div>
 
-          {/* Chauffeur et véhicule */}
+          {/* Livreur et véhicule */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <FaUser className="text-primary-600" />
-              Chauffeur et véhicule
+              Livreur et véhicule
             </h2>
 
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Chauffeur
+                  Livreur
                 </label>
                 <select
-                  name="chauffeur_id"
-                  value={formData.chauffeur_id}
+                  name="livreur_id" // Changé
+                  value={formData.livreur_id} // Changé
                   onChange={handleChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+                  disabled={loadingLivreurs}
                 >
-                  <option value="">Sélectionner un chauffeur</option>
-                  {chauffeurs.map((chauffeur) => (
-                    <option key={chauffeur.id} value={chauffeur.id}>
-                      {chauffeur.user?.nom} {chauffeur.user?.prenom}
+                  <option value="">Sélectionner un livreur</option>
+                  {livreurs.map((livreur) => (
+                    <option key={livreur.id} value={livreur.id}>
+                      {livreur.nom_complet || (livreur.user && `${livreur.user.prenom || ''} ${livreur.user.nom || ''}`) || 'Livreur'}
+                      {livreur.type && ` (${livreur.type})`}
                     </option>
                   ))}
                 </select>
+                {loadingLivreurs && (
+                  <p className="text-sm text-gray-500 mt-1">Chargement des livreurs...</p>
+                )}
               </div>
 
               <div>
@@ -443,6 +506,25 @@ const NavetteEdit = () => {
                   required
                 />
               </div>
+
+              {/* Affichage des colis actuels */}
+              {colisDeLaNavette.length > 0 && (
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                  <div className="flex items-center gap-2 text-blue-700 mb-2">
+                    <FaBoxes />
+                    <h3 className="font-medium">Colis dans cette navette</h3>
+                    <span className="ml-auto bg-blue-200 text-blue-800 px-2 py-1 rounded-full text-xs">
+                      {colisDeLaNavette.length}/{formData.capacite_max}
+                    </span>
+                  </div>
+                  <p className="text-sm text-blue-600">
+                    {colisDeLaNavette.length} colis actuellement assignés
+                  </p>
+                  <p className="text-xs text-blue-500 mt-1">
+                    (La gestion des colis se fait depuis la page de détail)
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -493,4 +575,4 @@ const NavetteEdit = () => {
   );
 };
 
-export default NavetteEdit; // ← LIGNE CRUCIALE
+export default NavetteEdit;

@@ -99,15 +99,28 @@ const navetteService = {
         link.remove();
     },
 
-    // Obtenir la liste des chauffeurs disponibles
-    getChauffeursDisponibles: async () => {
-        const response = await api.get('/livreurs', {
-            params: {
-                type: 'chauffeur',
-                desactiver: false
-            }
-        });
-        return response.data;
+    // Obtenir la liste des livreurs disponibles (chauffeurs)
+    getLivreursDisponibles: async () => {
+        try {
+            // Récupérer tous les livreurs actifs
+            const response = await api.get('/livreurs', {
+                params: {
+                    desactiver: false
+                }
+            });
+            
+            // Filtrer pour ne garder que ceux qui peuvent être chauffeurs
+            // (type 'distributeur' ou 'ramasseur' selon votre logique métier)
+            const livreurs = response.data?.data || response.data || [];
+            
+            // Si vous voulez filtrer par type spécifique
+            // const chauffeurs = livreurs.filter(l => l.type === 'distributeur' || l.type === 'ramasseur');
+            
+            return { data: livreurs };
+        } catch (error) {
+            console.error("Erreur getLivreursDisponibles:", error);
+            throw error;
+        }
     }
 };
 
