@@ -1,12 +1,13 @@
 // src/pages/Comptabilite/ImpayesList.jsx
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import comptabiliteService from "../../services/comptabiliteService";
 import {
   FaArrowLeft,
   FaMoneyBillWave,
-  FaUser,
+  FaUserTie,
+  FaCity,
   FaCalendarAlt,
   FaCheckCircle,
   FaTimesCircle,
@@ -18,33 +19,207 @@ import {
   FaCheckDouble,
   FaExclamationTriangle,
   FaSpinner,
+  FaFileExcel,
+  FaFilePdf,
+  FaFileCsv,
+  FaHistory,
 } from "react-icons/fa";
 
 const ImpayesList = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [impayes, setImpayes] = useState(null);
+  const [rawData, setRawData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
   const [selectedGains, setSelectedGains] = useState([]);
   const [filters, setFilters] = useState({
-    livreur: "",
+    gestionnaire: "",
+    wilaya: "",
     periode: "",
     search: "",
   });
   const [showExportModal, setShowExportModal] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
+  const [showAnnulerModal, setShowAnnulerModal] = useState(false);
+  const [selectedGainId, setSelectedGainId] = useState(null);
   const [payAll, setPayAll] = useState(false);
+  const [payNote, setPayNote] = useState("");
+  const [gestionnaireOptions, setGestionnaireOptions] = useState([]);
+  const [wilayas, setWilayas] = useState([]);
+
+  // Liste statique des wilayas (fallback uniquement)
+  const wilayasStatiques = [
+    { code: "01", nom: "Adrar" }, { code: "02", nom: "Chlef" }, { code: "03", nom: "Laghouat" },
+    { code: "04", nom: "Oum El Bouaghi" }, { code: "05", nom: "Batna" }, { code: "06", nom: "Béjaïa" },
+    { code: "07", nom: "Biskra" }, { code: "08", nom: "Béchar" }, { code: "09", nom: "Blida" },
+    { code: "10", nom: "Bouira" }, { code: "11", nom: "Tamanrasset" }, { code: "12", nom: "Tébessa" },
+    { code: "13", nom: "Tlemcen" }, { code: "14", nom: "Tiaret" }, { code: "15", nom: "Tizi Ouzou" },
+    { code: "16", nom: "Alger" }, { code: "17", nom: "Djelfa" }, { code: "18", nom: "Jijel" },
+    { code: "19", nom: "Sétif" }, { code: "20", nom: "Saïda" }, { code: "21", nom: "Skikda" },
+    { code: "22", nom: "Sidi Bel Abbès" }, { code: "23", nom: "Annaba" }, { code: "24", nom: "Guelma" },
+    { code: "25", nom: "Constantine" }, { code: "26", nom: "Médéa" }, { code: "27", nom: "Mostaganem" },
+    { code: "28", nom: "M'Sila" }, { code: "29", nom: "Mascara" }, { code: "30", nom: "Ouargla" },
+    { code: "31", nom: "Oran" }, { code: "32", nom: "El Bayadh" }, { code: "33", nom: "Illizi" },
+    { code: "34", nom: "Bordj Bou Arréridj" }, { code: "35", nom: "Boumerdès" }, { code: "36", nom: "El Tarf" },
+    { code: "37", nom: "Tindouf" }, { code: "38", nom: "Tissemsilt" }, { code: "39", nom: "El Oued" },
+    { code: "40", nom: "Khenchela" }, { code: "41", nom: "Souk Ahras" }, { code: "42", nom: "Tipaza" },
+    { code: "43", nom: "Mila" }, { code: "44", nom: "Aïn Defla" }, { code: "45", nom: "Naâma" },
+    { code: "46", nom: "Aïn Témouchent" }, { code: "47", nom: "Ghardaïa" }, { code: "48", nom: "Relizane" },
+    { code: "49", nom: "Timimoun" }, { code: "50", nom: "Bordj Badji Mokhtar" }, { code: "51", nom: "Ouled Djellal" },
+    { code: "52", nom: "Béni Abbès" }, { code: "53", nom: "In Salah" }, { code: "54", nom: "In Guezzam" },
+    { code: "55", nom: "Touggourt" }, { code: "56", nom: "Djanet" }, { code: "57", nom: "El M'Ghair" },
+    { code: "58", nom: "El Meniaa" }
+  ];
 
   useEffect(() => {
+    fetchGestionnaireOptions();
+    fetchWilayas();
     fetchImpayes();
   }, []);
+
+  const fetchGestionnaireOptions = async () => {
+    try {
+      const gestionnaireService = (await import("../../services/gestionnaireService")).default;
+      const options = await gestionnaireService.getGestionnaireOptions();
+      setGestionnaireOptions(options || []);
+    } catch (error) {
+      console.error("Erreur chargement gestionnaires:", error);
+    }
+  };
+
+  const fetchWilayas = async () => {
+    try {
+      const response = await comptabiliteService.getWilayas();
+      console.log("📦 Réponse wilayas brute:", response);
+      
+      let wilayasData = [];
+      
+      if (Array.isArray(response) && response.length > 0) {
+        wilayasData = response
+          .map(w => {
+            if (!w || typeof w !== 'object') return null;
+            const code = w.code || w.id || '';
+            const nom = w.name || w.nom || w.libelle || `Wilaya ${code}`;
+            if (!code) return null;
+            return { code: String(code).padStart(2, '0'), nom: String(nom) };
+          })
+          .filter(w => w !== null);
+        
+        if (wilayasData.length > 0) {
+          wilayasData.sort((a, b) => {
+            const codeA = a.code || '';
+            const codeB = b.code || '';
+            return codeA.localeCompare(codeB);
+          });
+        }
+      }
+      
+      if (wilayasData.length === 0) {
+        console.warn("⚠️ Utilisation de la liste statique des wilayas");
+        wilayasData = wilayasStatiques;
+      }
+      
+      console.log("✅ Wilayas formatées:", wilayasData);
+      setWilayas(wilayasData);
+      
+    } catch (error) {
+      console.error("❌ Erreur chargement wilayas:", error);
+      setWilayas(wilayasStatiques);
+    }
+  };
 
   const fetchImpayes = async () => {
     try {
       setLoading(true);
       const response = await comptabiliteService.getImpayes();
-      setImpayes(response.data);
+      console.log("📦 Impayés reçus:", response.data);
+      
+      const data = response.data;
+      
+      // Sauvegarder les données brutes
+      setRawData(data);
+      
+      // Si c'est un tableau
+      if (Array.isArray(data)) {
+        // Calculer les totaux
+        const total_impaye = data.reduce((sum, gain) => sum + (parseFloat(gain.montant_commission) || 0), 0);
+        
+        // Grouper par gestionnaire
+        const parGestionnaire = {};
+        data.forEach(gain => {
+          const gestionnaire = gain.gestionnaire || {};
+          const user = gestionnaire.user || {};
+          
+          const id = gain.gestionnaire_id;
+          if (!id) return;
+          
+          let nom = 'Gestionnaire inconnu';
+          if (user.prenom && user.nom) {
+            nom = `${user.prenom} ${user.nom}`;
+          } else if (user.nom) {
+            nom = user.nom;
+          } else if (gestionnaire.nom) {
+            nom = gestionnaire.nom;
+          }
+          
+          if (!parGestionnaire[id]) {
+            parGestionnaire[id] = {
+              gestionnaire_id: id,
+              nom: nom,
+              email: user.email || gestionnaire.email || '',
+              wilaya_code: gestionnaire.wilaya_id || '',
+              montant_total: 0,
+              nb_livraisons: 0
+            };
+          }
+          parGestionnaire[id].montant_total += parseFloat(gain.montant_commission) || 0;
+          parGestionnaire[id].nb_livraisons++;
+        });
+        
+        // Formater les détails
+        const details = data.map(gain => {
+          const gestionnaire = gain.gestionnaire || {};
+          const user = gestionnaire.user || {};
+          
+          let nom = 'Gestionnaire inconnu';
+          if (user.prenom && user.nom) {
+            nom = `${user.prenom} ${user.nom}`;
+          } else if (user.nom) {
+            nom = user.nom;
+          } else if (gestionnaire.nom) {
+            nom = gestionnaire.nom;
+          }
+          
+          return {
+            id: gain.id,
+            gestionnaire_id: gain.gestionnaire_id,
+            gestionnaire_nom: nom,
+            gestionnaire_email: user.email || gestionnaire.email || '',
+            wilaya_code: gestionnaire.wilaya_id || '',
+            livraison_id: gain.livraison_id,
+            periode: gain.periode || (gain.created_at ? new Date(gain.created_at).toISOString().slice(0, 7) : ''),
+            total_commissions: parseFloat(gain.montant_commission) || 0,
+            pourcentage_applique: gain.pourcentage_applique || 0,
+            status: gain.status || 'en_attente',
+            date_demande: gain.date_demande,
+            date_paiement: gain.date_paiement,
+            note_admin: gain.note_admin
+          };
+        });
+        
+        setImpayes({
+          total_impaye: total_impaye,
+          nb_total: data.length,
+          par_gestionnaire: Object.values(parGestionnaire),
+          details: details
+        });
+      } else {
+        setImpayes(data);
+      }
+      
     } catch (error) {
-      console.error("Erreur chargement impayés:", error);
+      console.error("❌ Erreur chargement impayés:", error);
       toast.error("Erreur lors du chargement des impayés");
     } finally {
       setLoading(false);
@@ -52,10 +227,11 @@ const ImpayesList = () => {
   };
 
   const handleSelectAll = () => {
-    if (selectedGains.length === getFilteredGains().length) {
+    const filtered = getFilteredGains();
+    if (selectedGains.length === filtered.length) {
       setSelectedGains([]);
     } else {
-      setSelectedGains(getFilteredGains().map((g) => g.id));
+      setSelectedGains(filtered.map((g) => g.id));
     }
   };
 
@@ -67,6 +243,38 @@ const ImpayesList = () => {
     }
   };
 
+  const handlePayerGain = async (gainId) => {
+    try {
+      setProcessing(true);
+      const response = await comptabiliteService.marquerPaye(gainId, payNote || "Payé par l'admin");
+      toast.success(response.message || "Gain marqué comme payé");
+      setPayNote("");
+      setSelectedGainId(null);
+      setShowAnnulerModal(false);
+      fetchImpayes();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Erreur lors du paiement");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleAnnulerGain = async (gainId) => {
+    try {
+      setProcessing(true);
+      const response = await comptabiliteService.annulerGain(gainId, payNote || "Annulé par l'admin");
+      toast.success(response.message || "Gain annulé avec succès");
+      setPayNote("");
+      setSelectedGainId(null);
+      setShowAnnulerModal(false);
+      fetchImpayes();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Erreur lors de l'annulation");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const handleMarquerPayes = async () => {
     if (selectedGains.length === 0) {
       toast.error("Veuillez sélectionner au moins un gain");
@@ -74,53 +282,57 @@ const ImpayesList = () => {
     }
 
     try {
-      const response = await comptabiliteService.marquerPayes(selectedGains);
-      toast.success(
-        response.message || `${selectedGains.length} gains marqués comme payés`,
-      );
+      setProcessing(true);
+      const response = await comptabiliteService.marquerPayes(selectedGains, payNote || null);
+      toast.success(response.message || `${selectedGains.length} gains marqués comme payés`);
       setSelectedGains([]);
+      setPayNote("");
       setShowPayModal(false);
       fetchImpayes();
     } catch (error) {
-      toast.error("Erreur lors du marquage des paiements");
+      toast.error(error.response?.data?.message || "Erreur lors du marquage des paiements");
+    } finally {
+      setProcessing(false);
     }
   };
 
   const handleMarquerPeriodePayee = async () => {
     try {
+      setProcessing(true);
       const periode = filters.periode || new Date().toISOString().slice(0, 7);
-      const livreurId = filters.livreur || null;
-
-      const response = await comptabiliteService.marquerPeriodePayee(
-        periode,
-        livreurId,
-      );
-      toast.success(
-        response.message || `Gains de ${periode} marqués comme payés`,
-      );
+      
+      const gainsIds = getFilteredGains().map(g => g.id);
+      
+      if (gainsIds.length === 0) {
+        toast.error("Aucun gain à marquer pour cette période");
+        return;
+      }
+      
+      const response = await comptabiliteService.marquerPayes(gainsIds, `Paiement période ${periode}`);
+      toast.success(response.message || `${gainsIds.length} gains marqués comme payés`);
       setShowPayModal(false);
       setPayAll(false);
       fetchImpayes();
     } catch (error) {
-      toast.error("Erreur lors du marquage des paiements");
+      toast.error(error.response?.data?.message || "Erreur lors du marquage des paiements");
+    } finally {
+      setProcessing(false);
     }
   };
 
   const handleExport = async (format = "excel") => {
     try {
-      await comptabiliteService.exportRapport(
-        {
-          type_periode: "personnalise",
-          date_debut: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .split("T")[0],
-          date_fin: new Date().toISOString().split("T")[0],
-          statut: "en_attente",
-          livreur_id: filters.livreur || undefined,
-        },
-        format,
-      );
-
+      await comptabiliteService.exportRapportGestionnaires({
+        periode: "personnalise",
+        date_debut: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split("T")[0],
+        date_fin: new Date().toISOString().split("T")[0],
+        statut: "en_attente,demande_envoyee",
+        gestionnaire_id: filters.gestionnaire || undefined,
+        wilaya_id: filters.wilaya || undefined,
+        format: format
+      });
       toast.success("Export lancé avec succès");
       setShowExportModal(false);
     } catch (error) {
@@ -128,37 +340,26 @@ const ImpayesList = () => {
     }
   };
 
+  const getWilayaName = (code) => {
+    if (!code) return "";
+    const wilaya = wilayas.find(w => w && w.code === code);
+    return wilaya ? wilaya.nom : `Wilaya ${code}`;
+  };
+
   const getFilteredGains = () => {
-    if (!impayes?.par_livreur) return [];
+    if (!impayes?.details) return [];
 
-    let gains = [];
-    impayes.par_livreur.forEach((livreur) => {
-      // Simulation de gains individuels (à remplacer par vraies données)
-      for (let i = 0; i < livreur.nb_livraisons; i++) {
-        gains.push({
-          id: `${livreur.livreur_id}-${i}`,
-          livreur_id: livreur.livreur_id,
-          livreur_nom: livreur.nom,
-          date: new Date(Date.now() - i * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .split("T")[0],
-          montant: livreur.montant_total / livreur.nb_livraisons,
-          livraison_id: `LIV-${Math.floor(Math.random() * 10000)}`,
-          periode: new Date().toISOString().slice(0, 7),
-        });
-      }
-    });
-
-    // Appliquer les filtres
-    return gains.filter((gain) => {
-      if (filters.livreur && gain.livreur_id.toString() !== filters.livreur)
+    return impayes.details.filter((gain) => {
+      if (filters.gestionnaire && gain.gestionnaire_id !== filters.gestionnaire)
         return false;
+      if (filters.wilaya && gain.wilaya_code !== filters.wilaya) return false;
       if (filters.periode && gain.periode !== filters.periode) return false;
       if (filters.search) {
         const searchLower = filters.search.toLowerCase();
         return (
-          gain.livreur_nom.toLowerCase().includes(searchLower) ||
-          gain.livraison_id.toLowerCase().includes(searchLower)
+          gain.gestionnaire_nom?.toLowerCase().includes(searchLower) ||
+          getWilayaName(gain.wilaya_code)?.toLowerCase().includes(searchLower) ||
+          gain.livraison_id?.toLowerCase().includes(searchLower)
         );
       }
       return true;
@@ -179,6 +380,21 @@ const ImpayesList = () => {
     return periodes;
   };
 
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'en_attente':
+        return { color: 'bg-yellow-100 text-yellow-800', label: 'En attente', icon: FaClock };
+      case 'demande_envoyee':
+        return { color: 'bg-blue-100 text-blue-800', label: 'Demande envoyée', icon: FaCheckCircle };
+      case 'paye':
+        return { color: 'bg-green-100 text-green-800', label: 'Payé', icon: FaCheckCircle };
+      case 'annule':
+        return { color: 'bg-red-100 text-red-800', label: 'Annulé', icon: FaTimesCircle };
+      default:
+        return { color: 'bg-gray-100 text-gray-800', label: status, icon: FaClock };
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -190,11 +406,36 @@ const ImpayesList = () => {
   const filteredGains = getFilteredGains();
   const totalSelectionne = selectedGains.reduce((sum, id) => {
     const gain = filteredGains.find((g) => g.id === id);
-    return sum + (gain?.montant || 0);
+    return sum + (gain?.total_commissions || 0);
   }, 0);
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {/* Onglets */}
+      <div className="flex gap-2 mb-6 border-b border-gray-200">
+        <button
+          onClick={() => navigate("/comptabilite/impayes")}
+          className={`px-4 py-2 text-sm font-medium transition ${
+            location.pathname === "/comptabilite/impayes"
+              ? "text-primary-600 border-b-2 border-primary-600"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Impayés en cours
+        </button>
+        <button
+          onClick={() => navigate("/comptabilite/historique")}
+          className={`px-4 py-2 text-sm font-medium transition ${
+            location.pathname === "/comptabilite/historique"
+              ? "text-primary-600 border-b-2 border-primary-600"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          <FaHistory className="inline mr-1" />
+          Historique
+        </button>
+      </div>
+
       {/* En-tête */}
       <div className="mb-6">
         <button
@@ -207,7 +448,7 @@ const ImpayesList = () => {
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
-              Gestion des impayés
+              Gestion des impayés - Gestionnaires
             </h1>
             <p className="text-gray-600">
               Total impayés : {formatMontant(impayes?.total_impaye)} (
@@ -219,6 +460,7 @@ const ImpayesList = () => {
             <button
               onClick={() => setShowExportModal(true)}
               className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+              disabled={processing}
             >
               <FaFileExport /> Exporter
             </button>
@@ -226,13 +468,18 @@ const ImpayesList = () => {
               <button
                 onClick={() => setShowPayModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition"
+                disabled={processing}
               >
                 <FaCheckCircle /> Marquer comme payés ({selectedGains.length})
               </button>
             )}
             <button
-              onClick={() => setPayAll(true) || setShowPayModal(true)}
+              onClick={() => {
+                setPayAll(true);
+                setShowPayModal(true);
+              }}
               className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+              disabled={processing}
             >
               <FaCheckDouble /> Tout payer (période)
             </button>
@@ -242,22 +489,42 @@ const ImpayesList = () => {
 
       {/* Filtres */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Livreur
+              Gestionnaire
             </label>
             <select
-              value={filters.livreur}
+              value={filters.gestionnaire}
               onChange={(e) =>
-                setFilters({ ...filters, livreur: e.target.value })
+                setFilters({ ...filters, gestionnaire: e.target.value })
               }
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
             >
-              <option value="">Tous les livreurs</option>
-              {impayes?.par_livreur?.map((livreur) => (
-                <option key={livreur.livreur_id} value={livreur.livreur_id}>
-                  {livreur.nom}
+              <option value="">Tous les gestionnaires</option>
+              {gestionnaireOptions.map((gestionnaire) => (
+                <option key={gestionnaire.value} value={gestionnaire.value}>
+                  {gestionnaire.label} - {getWilayaName(gestionnaire.wilaya_id)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Wilaya
+            </label>
+            <select
+              value={filters.wilaya}
+              onChange={(e) =>
+                setFilters({ ...filters, wilaya: e.target.value })
+              }
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="">Toutes les wilayas</option>
+              {wilayas.map((wilaya) => (
+                <option key={wilaya.code} value={wilaya.code}>
+                  {wilaya.code} - {wilaya.nom}
                 </option>
               ))}
             </select>
@@ -286,7 +553,7 @@ const ImpayesList = () => {
             </select>
           </div>
 
-          <div className="md:col-span-2">
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Recherche
             </label>
@@ -294,7 +561,7 @@ const ImpayesList = () => {
               <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Rechercher par livreur ou livraison..."
+                placeholder="Rechercher..."
                 value={filters.search}
                 onChange={(e) =>
                   setFilters({ ...filters, search: e.target.value })
@@ -307,7 +574,7 @@ const ImpayesList = () => {
 
         <div className="flex justify-end mt-4">
           <button
-            onClick={() => setFilters({ livreur: "", periode: "", search: "" })}
+            onClick={() => setFilters({ gestionnaire: "", wilaya: "", periode: "", search: "" })}
             className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
           >
             <FaFilter /> Réinitialiser
@@ -315,46 +582,49 @@ const ImpayesList = () => {
         </div>
       </div>
 
-      {/* Résumé par livreur */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        {impayes?.par_livreur?.map((livreur) => (
-          <div
-            key={livreur.livreur_id}
-            className="bg-white rounded-lg shadow p-4"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-red-100 rounded-lg">
-                <FaUser className="w-5 h-5 text-red-600" />
+      {/* Résumé par gestionnaire */}
+      {impayes?.par_gestionnaire && impayes.par_gestionnaire.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {impayes.par_gestionnaire.map((gestionnaire) => (
+            <div
+              key={gestionnaire.gestionnaire_id}
+              className="bg-white rounded-lg shadow p-4 hover:shadow-md transition cursor-pointer"
+              onClick={() => {
+                setFilters({
+                  ...filters,
+                  gestionnaire: gestionnaire.gestionnaire_id,
+                });
+              }}
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <FaUserTie className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">{gestionnaire.nom}</p>
+                  <p className="text-sm text-gray-600">
+                    {getWilayaName(gestionnaire.wilaya_code)} ({gestionnaire.wilaya_code})
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="font-medium text-gray-900">{livreur.nom}</p>
-                <p className="text-sm text-gray-600">
-                  {livreur.nb_livraisons} livraisons
-                </p>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Total impayé</span>
+                <span className="font-bold text-red-600">
+                  {formatMontant(gestionnaire.montant_total)}
+                </span>
+              </div>
+              <div className="mt-2 flex justify-between items-center">
+                <span className="text-xs text-gray-500">
+                  {gestionnaire.nb_livraisons} livraisons
+                </span>
+                <span className="text-xs text-primary-600">
+                  Cliquer pour filtrer
+                </span>
               </div>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Total impayé</span>
-              <span className="font-bold text-red-600">
-                {formatMontant(livreur.montant_total)}
-              </span>
-            </div>
-            <div className="mt-2">
-              <button
-                onClick={() => {
-                  setFilters({
-                    ...filters,
-                    livreur: livreur.livreur_id.toString(),
-                  });
-                }}
-                className="text-xs text-primary-600 hover:text-primary-800"
-              >
-                Voir les détails
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Tableau des gains impayés */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -397,13 +667,13 @@ const ImpayesList = () => {
                     />
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Livreur
+                    Gestionnaire
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Wilaya
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Livraison
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Période
@@ -412,64 +682,130 @@ const ImpayesList = () => {
                     Montant
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    % appliqué
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Statut
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredGains.map((gain, index) => (
-                  <tr key={gain.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <input
-                        type="checkbox"
-                        checked={selectedGains.includes(gain.id)}
-                        onChange={() => handleSelectGain(gain.id)}
-                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                      />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-8 w-8 bg-gray-200 rounded-full flex items-center justify-center">
-                          <FaUser className="h-4 w-4 text-gray-600" />
+                {filteredGains.map((gain) => {
+                  const statusBadge = getStatusBadge(gain.status);
+                  const StatusIcon = statusBadge.icon;
+                  return (
+                    <tr key={gain.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={selectedGains.includes(gain.id)}
+                          onChange={() => handleSelectGain(gain.id)}
+                          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                          disabled={gain.status === 'paye' || gain.status === 'annule'}
+                        />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0 h-8 w-8 bg-gray-200 rounded-full flex items-center justify-center">
+                            <FaUserTie className="h-4 w-4 text-gray-600" />
+                          </div>
+                          <div className="ml-3">
+                            <p className="text-sm font-medium text-gray-900">
+                              {gain.gestionnaire_nom}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {gain.gestionnaire_email}
+                            </p>
+                          </div>
                         </div>
-                        <div className="ml-3">
-                          <p className="text-sm font-medium text-gray-900">
-                            {gain.livreur_nom}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm text-gray-600">
-                        {gain.livraison_id}
-                      </p>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <FaCalendarAlt className="text-gray-400 w-3 h-3" />
-                        <span className="text-sm text-gray-600">
-                          {new Date(gain.date).toLocaleDateString("fr-FR")}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <p className="text-sm text-gray-600">
+                          {getWilayaName(gain.wilaya_code)} ({gain.wilaya_code})
+                        </p>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <p className="text-sm text-gray-600">
+                          {gain.livraison_id?.substring(0, 8)}...
+                        </p>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs">
+                          {gain.periode}
                         </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs">
-                        {gain.periode}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm font-semibold text-red-600">
-                        {formatMontant(gain.montant)}
-                      </p>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs flex items-center gap-1 w-fit">
-                        <FaClock className="w-3 h-3" />
-                        En attente
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <p className="text-sm font-semibold text-red-600">
+                          {formatMontant(gain.total_commissions)}
+                        </p>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <p className="text-sm text-gray-600">
+                          {gain.pourcentage_applique}%
+                        </p>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full inline-flex items-center gap-1 ${statusBadge.color}`}>
+                          <StatusIcon className="w-3 h-3" />
+                          {statusBadge.label}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex gap-2">
+                          {gain.status === 'demande_envoyee' && (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setSelectedGainId(gain.id);
+                                  setPayNote("");
+                                  handlePayerGain(gain.id);
+                                }}
+                                disabled={processing}
+                                className="px-3 py-1 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition flex items-center gap-1 disabled:opacity-50"
+                              >
+                                <FaCheckCircle className="w-3 h-3" />
+                                Payer
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedGainId(gain.id);
+                                  setPayNote("");
+                                  setShowAnnulerModal(true);
+                                }}
+                                disabled={processing}
+                                className="px-3 py-1 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition flex items-center gap-1 disabled:opacity-50"
+                              >
+                                <FaTimesCircle className="w-3 h-3" />
+                                Annuler
+                              </button>
+                            </>
+                          )}
+                          {gain.status === 'en_attente' && (
+                            <span className="text-xs text-gray-500 italic flex items-center gap-1">
+                              <FaClock className="w-3 h-3" />
+                              En attente
+                            </span>
+                          )}
+                          {gain.status === 'paye' && (
+                            <span className="text-xs text-green-600 italic flex items-center gap-1">
+                              <FaCheckCircle className="w-3 h-3" />
+                              Payé
+                            </span>
+                          )}
+                          {gain.status === 'annule' && (
+                            <span className="text-xs text-red-600 italic flex items-center gap-1">
+                              <FaTimesCircle className="w-3 h-3" />
+                              Annulé
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -495,7 +831,7 @@ const ImpayesList = () => {
         )}
       </div>
 
-      {/* Modal de confirmation de paiement */}
+      {/* Modal de confirmation de paiement multiple */}
       {showPayModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
@@ -503,7 +839,7 @@ const ImpayesList = () => {
               <h2 className="text-xl font-bold text-gray-900">
                 {payAll
                   ? "Marquer une période comme payée"
-                  : "Confirmer le paiement"}
+                  : "Confirmer le paiement multiple"}
               </h2>
             </div>
 
@@ -518,9 +854,7 @@ const ImpayesList = () => {
                       Période
                     </label>
                     <select
-                      value={
-                        filters.periode || new Date().toISOString().slice(0, 7)
-                      }
+                      value={filters.periode || new Date().toISOString().slice(0, 7)}
                       onChange={(e) =>
                         setFilters({ ...filters, periode: e.target.value })
                       }
@@ -528,35 +862,52 @@ const ImpayesList = () => {
                     >
                       {getPeriodes().map((periode) => (
                         <option key={periode} value={periode}>
-                          {new Date(periode + "-01").toLocaleDateString(
-                            "fr-FR",
-                            { month: "long", year: "numeric" },
-                          )}
+                          {new Date(periode + "-01").toLocaleDateString("fr-FR", {
+                            month: "long",
+                            year: "numeric",
+                          })}
                         </option>
                       ))}
                     </select>
                   </div>
-                  {filters.livreur && (
+                  {filters.gestionnaire && (
                     <p className="text-sm text-gray-600">
-                      Livreur:{" "}
-                      {
-                        impayes?.par_livreur?.find(
-                          (l) => l.livreur_id.toString() === filters.livreur,
-                        )?.nom
+                      Gestionnaire: {
+                        gestionnaireOptions.find(
+                          (g) => g.value === filters.gestionnaire
+                        )?.label
                       }
+                    </p>
+                  )}
+                  {filters.wilaya && (
+                    <p className="text-sm text-gray-600">
+                      Wilaya: {getWilayaName(filters.wilaya)} ({filters.wilaya})
                     </p>
                   )}
                 </div>
               ) : (
                 <div className="space-y-4">
                   <p className="text-gray-600">
-                    Vous êtes sur le point de marquer {selectedGains.length}{" "}
+                    Vous êtes sur le point de marquer <span className="font-bold">{selectedGains.length}</span>{" "}
                     gain(s) comme payés pour un montant total de{" "}
-                    {formatMontant(totalSelectionne)}.
+                    <span className="font-bold text-green-600">{formatMontant(totalSelectionne)}</span>.
                   </p>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Note (optionnelle)
+                    </label>
+                    <textarea
+                      value={payNote}
+                      onChange={(e) => setPayNote(e.target.value)}
+                      placeholder="Ajouter une note..."
+                      rows="3"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
+                  
                   <p className="text-sm text-gray-500">
-                    Cette action est irréversible. Les livreurs concernés seront
-                    notifiés.
+                    Cette action est irréversible. Les gestionnaires concernés seront notifiés par email.
                   </p>
                 </div>
               )}
@@ -567,18 +918,96 @@ const ImpayesList = () => {
                 onClick={() => {
                   setShowPayModal(false);
                   setPayAll(false);
+                  setPayNote("");
                 }}
                 className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition"
+                disabled={processing}
               >
                 Annuler
               </button>
               <button
-                onClick={
-                  payAll ? handleMarquerPeriodePayee : handleMarquerPayes
-                }
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                onClick={payAll ? handleMarquerPeriodePayee : handleMarquerPayes}
+                disabled={processing}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 flex items-center gap-2"
               >
-                Confirmer le paiement
+                {processing ? (
+                  <>
+                    <FaSpinner className="animate-spin" />
+                    Traitement...
+                  </>
+                ) : (
+                  <>
+                    <FaCheckCircle />
+                    Confirmer
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal d'annulation individuelle */}
+      {showAnnulerModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900">Confirmer l'annulation</h2>
+            </div>
+
+            <div className="p-6">
+              <div className="space-y-4">
+                <p className="text-gray-600">
+                  Êtes-vous sûr de vouloir annuler ce gain ?
+                </p>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Motif d'annulation (optionnel)
+                  </label>
+                  <textarea
+                    value={payNote}
+                    onChange={(e) => setPayNote(e.target.value)}
+                    placeholder="Raison de l'annulation..."
+                    rows="3"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+                  />
+                </div>
+                
+                <p className="text-sm text-gray-500">
+                  Cette action est irréversible. Le gestionnaire sera notifié par email.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowAnnulerModal(false);
+                  setPayNote("");
+                  setSelectedGainId(null);
+                }}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition"
+                disabled={processing}
+              >
+                Retour
+              </button>
+              <button
+                onClick={() => handleAnnulerGain(selectedGainId)}
+                disabled={processing}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50 flex items-center gap-2"
+              >
+                {processing ? (
+                  <>
+                    <FaSpinner className="animate-spin" />
+                    Traitement...
+                  </>
+                ) : (
+                  <>
+                    <FaTimesCircle />
+                    Confirmer l'annulation
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -628,7 +1057,8 @@ const ImpayesList = () => {
 
                 <p className="text-sm text-gray-500">
                   L'export inclura {filteredGains.length} gains impayés
-                  {filters.livreur && " pour le livreur sélectionné"}
+                  {filters.gestionnaire && " pour le gestionnaire sélectionné"}
+                  {filters.wilaya && ` pour la wilaya ${getWilayaName(filters.wilaya)}`}
                   {filters.periode && ` pour la période ${filters.periode}`}.
                 </p>
               </div>

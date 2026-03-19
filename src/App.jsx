@@ -61,6 +61,11 @@ import NavetteEdit from "./pages/Navettes/NavetteEdit";
 import ComptabiliteDashboard from "./pages/Comptabilite/ComptabiliteDashboard";
 import RapportGains from "./pages/Comptabilite/RapportGains";
 import ImpayesList from "./pages/Comptabilite/ImpayesList";
+import HistoriqueGains from "./pages/Comptabilite/HistoriqueGains";
+
+// NOUVELLES PAGES COMMISSIONS
+import CommissionConfig from "./pages/Comptabilite/CommissionConfig";
+import GainsGestionnaire from "./pages/Comptabilite/GainsGestionnaire";
 
 /* ================= ROUTES PROTÉGÉES ================= */
 
@@ -157,6 +162,11 @@ function App() {
             <Route path="comptabilite" element={<ComptabiliteDashboard />} />
             <Route path="comptabilite/rapport" element={<RapportGains />} />
             <Route path="comptabilite/impayes" element={<ImpayesList />} />
+            <Route path="comptabilite/historique" element={<HistoriqueGains />} />
+            
+            {/* NOUVELLES ROUTES COMMISSIONS */}
+            <Route path="comptabilite/commissions/config" element={<CommissionConfig />} />
+            <Route path="comptabilite/commissions/gestionnaire/:id" element={<GainsGestionnaire />} />
 
             {/* PROFIL */}
             <Route path="profile" element={<Profile />} />

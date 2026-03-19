@@ -1,8 +1,6 @@
 // src/pages/Comptabilite/components/GainsChart.jsx
 import React from "react";
 import {
-  LineChart,
-  Line,
   BarChart,
   Bar,
   XAxis,
@@ -18,9 +16,9 @@ const GainsChart = ({ data = [] }) => {
   const formatData = () => {
     return data.map((item) => ({
       ...item,
-      brut: item.brut || 0,
+      commissions: item.commissions || 0,
       societe: item.societe || 0,
-      livreurs: item.livreurs || 0,
+      livraisons: item.livraisons || 0,
     }));
   };
 
@@ -36,7 +34,9 @@ const GainsChart = ({ data = [] }) => {
             >
               <span style={{ color: entry.color }}>{entry.name}:</span>
               <span className="font-medium">
-                {comptabiliteService.formatMontant(entry.value)}
+                {entry.name === "Livraisons" 
+                  ? entry.value 
+                  : comptabiliteService.formatMontant(entry.value)}
               </span>
             </div>
           ))}
@@ -63,14 +63,20 @@ const GainsChart = ({ data = [] }) => {
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="mois" />
         <YAxis
-          tickFormatter={(value) => `${value / 1000}k`}
+          yAxisId="left"
+          tickFormatter={(value) => `${value / 1000}k DA`}
+          domain={[0, "auto"]}
+        />
+        <YAxis
+          yAxisId="right"
+          orientation="right"
           domain={[0, "auto"]}
         />
         <Tooltip content={<CustomTooltip />} />
         <Legend />
-        <Bar dataKey="brut" name="Brut" fill="#3B82F6" />
-        <Bar dataKey="societe" name="Société mère" fill="#10B981" />
-        <Bar dataKey="livreurs" name="Livreurs" fill="#8B5CF6" />
+        <Bar yAxisId="left" dataKey="commissions" name="Commissions" fill="#3B82F6" />
+        <Bar yAxisId="left" dataKey="societe" name="Part société" fill="#10B981" />
+        <Bar yAxisId="right" dataKey="livraisons" name="Livraisons" fill="#8B5CF6" />
       </BarChart>
     </ResponsiveContainer>
   );

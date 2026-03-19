@@ -1,5 +1,6 @@
 // src/pages/Comptabilite/ComptabiliteDashboard.jsx
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
 import comptabiliteService from "../../services/comptabiliteService";
@@ -18,9 +19,14 @@ import {
   FaGlobe,
   FaCity,
   FaFileExport,
+  FaPercentage,
+  FaChartPie,
+  FaUsers,
+  FaEye,
 } from "react-icons/fa";
 
 const ComptabiliteDashboard = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
@@ -34,6 +40,8 @@ const ComptabiliteDashboard = () => {
       .split("T")[0],
     fin: new Date().toISOString().split("T")[0],
   });
+  const [showCommissionDetails, setShowCommissionDetails] = useState(false);
+  const [commissionStats, setCommissionStats] = useState(null);
 
   // Liste des wilayas pour le select admin
   const wilayas = [
@@ -136,6 +144,25 @@ const ComptabiliteDashboard = () => {
     }
   };
 
+  const fetchCommissionStats = async () => {
+    if (!isAdmin) return;
+    
+    try {
+      const params = { periode: period };
+      if (period === "personnalise") {
+        params.date_debut = customDate.debut;
+        params.date_fin = customDate.fin;
+      }
+      
+      // Importer dynamiquement le service pour éviter les dépendances circulaires
+      const commissionService = (await import("../../services/commissionService")).default;
+      const response = await commissionService.getStatistiquesGlobales(params);
+      setCommissionStats(response.data);
+    } catch (error) {
+      console.error("Erreur chargement stats commissions:", error);
+    }
+  };
+
   const handleExport = async (format = "excel") => {
     try {
       let params = {
@@ -168,6 +195,10 @@ const ComptabiliteDashboard = () => {
     }
   };
 
+  const handleViewGestionnaireGains = (gestionnaireId) => {
+    navigate(`/comptabilite/commissions/gestionnaire/${gestionnaireId}`);
+  };
+
   const formatMontant = (montant) => {
     return comptabiliteService.formatMontant(montant);
   };
@@ -192,8 +223,12 @@ const ComptabiliteDashboard = () => {
     evolution,
     subValue,
     suffix = "",
+    onClick,
   }) => (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div 
+      className={`bg-white rounded-lg shadow p-6 ${onClick ? 'cursor-pointer hover:shadow-lg transition' : ''}`}
+      onClick={onClick}
+    >
       <div className="flex items-center justify-between mb-4">
         <div className={`p-3 rounded-lg ${color}`}>
           <Icon className="w-6 h-6 text-white" />
@@ -327,6 +362,37 @@ const ComptabiliteDashboard = () => {
           >
             <FaDownload />
           </button>
+
+          {/* Boutons Commissions (admin uniquement) */}
+          {isAdmin && (
+            <>
+              <button
+                onClick={() => navigate("/comptabilite/commissions/config")}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center gap-2"
+                title="Configurer les commissions"
+              >
+                <FaPercentage />
+                <span className="hidden lg:inline">Commissions</span>
+              </button>
+              <button
+                onClick={() => {
+                  setShowCommissionDetails(!showCommissionDetails);
+                  if (!showCommissionDetails && !commissionStats) {
+                    fetchCommissionStats();
+                  }
+                }}
+                className={`px-4 py-2 transition flex items-center gap-2 ${
+                  showCommissionDetails
+                    ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                } rounded-lg`}
+                title="Voir les statistiques des commissions"
+              >
+                <FaChartPie />
+                <span className="hidden lg:inline">Stats Commissions</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -367,6 +433,92 @@ const ComptabiliteDashboard = () => {
               Appliquer
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Section Commissions (admin uniquement) */}
+      {isAdmin && showCommissionDetails && commissionStats && (
+        <div className="mb-8 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <FaChartPie className="text-purple-600" />
+              Statistiques des commissions - {commissionStats.periode?.libelle}
+            </h2>
+            <button
+              onClick={() => setShowCommissionDetails(false)}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div className="bg-white rounded-lg p-4">
+              <p className="text-sm text-gray-600 mb-1">Total commissions</p>
+              <p className="text-xl font-bold text-purple-600">
+                {formatMontant(commissionStats.stats_generales?.total_commissions)}
+              </p>
+              <p className="text-xs text-gray-500">
+                {commissionStats.stats_generales?.nombre_livraisons_commissionnees} livraisons
+              </p>
+            </div>
+            <div className="bg-white rounded-lg p-4">
+              <p className="text-sm text-gray-600 mb-1">Gestionnaires concernés</p>
+              <p className="text-xl font-bold text-blue-600">
+                {commissionStats.stats_generales?.nombre_gestionnaires_concernes}
+              </p>
+              <p className="text-xs text-gray-500">Gestionnaires actifs</p>
+            </div>
+            <div className="bg-white rounded-lg p-4">
+              <p className="text-sm text-gray-600 mb-1">Configuration actuelle</p>
+              <div className="flex gap-2 text-sm">
+                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                  Départ: {commissionStats.config_actuelle?.depart}%
+                </span>
+                <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded">
+                  Arrivée: {commissionStats.config_actuelle?.arrivee}%
+                </span>
+              </div>
+            </div>
+            <div className="bg-white rounded-lg p-4">
+              <p className="text-sm text-gray-600 mb-1">Part admin</p>
+              <p className="text-xl font-bold text-green-600">
+                {commissionStats.config_actuelle?.admin}%
+              </p>
+              <p className="text-xs text-gray-500">Sur le CA total</p>
+            </div>
+          </div>
+
+          {/* Top gestionnaires */}
+          {commissionStats.top_gestionnaires?.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                <FaUsers className="text-gray-500" />
+                Top 5 gestionnaires
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                {commissionStats.top_gestionnaires.map((g, index) => (
+                  <div
+                    key={g.gestionnaire_id}
+                    onClick={() => handleViewGestionnaireGains(g.gestionnaire_id)}
+                    className="bg-white rounded-lg p-3 cursor-pointer hover:shadow-md transition border border-gray-100"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium text-gray-900">
+                        #{index + 1}
+                      </span>
+                      <FaEye className="w-3 h-3 text-gray-400" />
+                    </div>
+                    <p className="text-xs text-gray-600 truncate">{g.nom}</p>
+                    <p className="text-xs text-gray-500 mb-1">Wilaya {g.wilaya}</p>
+                    <p className="text-sm font-semibold text-purple-600">
+                      {formatMontant(g.total_gains)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -591,7 +743,8 @@ const ComptabiliteDashboard = () => {
                   {stats.top_wilayas.departs?.map((wilaya, index) => (
                     <div
                       key={index}
-                      className="flex justify-between items-center p-2 bg-gray-50 rounded"
+                      className="flex justify-between items-center p-2 bg-gray-50 rounded cursor-pointer hover:bg-gray-100 transition"
+                      onClick={() => setSelectedWilaya(wilaya.wilaya)}
                     >
                       <span className="font-medium">
                         {wilaya.nom} ({wilaya.wilaya})
@@ -612,7 +765,8 @@ const ComptabiliteDashboard = () => {
                   {stats.top_wilayas.arrivees?.map((wilaya, index) => (
                     <div
                       key={index}
-                      className="flex justify-between items-center p-2 bg-gray-50 rounded"
+                      className="flex justify-between items-center p-2 bg-gray-50 rounded cursor-pointer hover:bg-gray-100 transition"
+                      onClick={() => setSelectedWilaya(wilaya.wilaya)}
                     >
                       <span className="font-medium">
                         {wilaya.nom} ({wilaya.wilaya})
