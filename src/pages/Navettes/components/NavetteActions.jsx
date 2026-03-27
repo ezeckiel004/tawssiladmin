@@ -11,13 +11,11 @@ import {
   FaTrash,
   FaPrint,
   FaDownload,
-  FaShare,
   FaCopy,
   FaPlus,
   FaMinus,
   FaBoxes,
-  FaUserPlus,
-  FaMapMarkerAlt,
+  FaBuilding,
   FaBell,
   FaCheckCircle,
   FaExclamationTriangle,
@@ -61,7 +59,6 @@ const NavetteActions = ({ navette, onActionComplete }) => {
           navigate("/navettes");
           return;
         case "duplicate":
-          // Logique de duplication
           toast.success("Navette dupliquée");
           break;
         case "export-pdf":
@@ -69,8 +66,7 @@ const NavetteActions = ({ navette, onActionComplete }) => {
           toast.success("PDF généré");
           break;
         case "notify":
-          // Notifier le chauffeur
-          toast.success("Notification envoyée au chauffeur");
+          toast.success("Notification envoyée au hub");
           break;
         default:
           break;
@@ -102,7 +98,7 @@ const NavetteActions = ({ navette, onActionComplete }) => {
         return {
           title: "Démarrer la navette",
           message:
-            "Êtes-vous sûr de vouloir démarrer cette navette ? Le chauffeur sera notifié.",
+            "Êtes-vous sûr de vouloir démarrer cette navette ? Le hub sera notifié.",
           icon: FaPlay,
           color: "yellow",
         };
@@ -110,7 +106,7 @@ const NavetteActions = ({ navette, onActionComplete }) => {
         return {
           title: "Terminer la navette",
           message:
-            "Confirmez-vous que la navette est bien arrivée à destination ? Tous les colis seront marqués comme livrés.",
+            "Confirmez-vous que la navette est bien arrivée à destination ? Toutes les livraisons seront marquées comme livrées.",
           icon: FaStop,
           color: "green",
         };
@@ -138,7 +134,6 @@ const NavetteActions = ({ navette, onActionComplete }) => {
   const getAvailableActions = () => {
     const actions = [];
 
-    // Actions selon le statut
     switch (navette?.status) {
       case "planifiee":
         actions.push(
@@ -192,7 +187,6 @@ const NavetteActions = ({ navette, onActionComplete }) => {
         break;
     }
 
-    // Actions communes à tous les statuts
     actions.push(
       {
         key: "export-pdf",
@@ -203,8 +197,7 @@ const NavetteActions = ({ navette, onActionComplete }) => {
       { key: "print", label: "Imprimer", icon: FaPrint, color: "gray" },
     );
 
-    // Actions si chauffeur assigné
-    if (navette?.chauffeur_id) {
+    if (navette?.hub_id) {
       actions.push({
         key: "notify",
         label: "Notifier",
@@ -267,7 +260,6 @@ const NavetteActions = ({ navette, onActionComplete }) => {
 
   return (
     <div className="space-y-4">
-      {/* Badge de statut */}
       <div className="bg-white rounded-lg shadow p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -288,7 +280,6 @@ const NavetteActions = ({ navette, onActionComplete }) => {
         </div>
       </div>
 
-      {/* Actions principales */}
       <div className="bg-white rounded-lg shadow p-4">
         <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
           <FaPlay className="w-4 h-4 text-primary-600" />
@@ -349,41 +340,39 @@ const NavetteActions = ({ navette, onActionComplete }) => {
         </div>
       </div>
 
-      {/* Actions secondaires */}
       <div className="bg-white rounded-lg shadow p-4">
         <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
           <FaBoxes className="w-4 h-4 text-primary-600" />
-          Gestion des colis
+          Gestion des livraisons
         </h3>
 
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={() => navigate(`/navettes/${navette?.id}/ajouter-colis`)}
+            onClick={() => navigate(`/navettes/${navette?.id}/ajouter-livraisons`)}
             className="flex items-center gap-2 px-4 py-2 bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition text-sm"
           >
-            <FaPlus /> Ajouter des colis
+            <FaPlus /> Ajouter des livraisons
           </button>
           <button
-            onClick={() => navigate(`/navettes/${navette?.id}/retirer-colis`)}
+            onClick={() => navigate(`/navettes/${navette?.id}/retirer-livraisons`)}
             className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition text-sm"
           >
-            <FaMinus /> Retirer des colis
+            <FaMinus /> Retirer des livraisons
           </button>
           <button
-            onClick={() => navigate(`/navettes/${navette?.id}/colis`)}
+            onClick={() => navigate(`/navettes/${navette?.id}/livraisons`)}
             className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm"
           >
-            <FaBoxes /> Voir tous les colis
+            <FaBoxes /> Voir toutes les livraisons
           </button>
         </div>
       </div>
 
-      {/* Actions chauffeur */}
-      {navette?.chauffeur_id && (
+      {navette?.hub_id && (
         <div className="bg-white rounded-lg shadow p-4">
           <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-            <FaUserPlus className="w-4 h-4 text-primary-600" />
-            Actions chauffeur
+            <FaBuilding className="w-4 h-4 text-primary-600" />
+            Actions hub
           </h3>
 
           <div className="flex flex-wrap gap-2">
@@ -391,19 +380,18 @@ const NavetteActions = ({ navette, onActionComplete }) => {
               onClick={() => handleAction("notify")}
               className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-sm"
             >
-              <FaBell /> Notifier le chauffeur
+              <FaBell /> Notifier le hub
             </button>
             <button
-              onClick={() => navigate(`/livreurs/${navette.chauffeur_id}`)}
+              onClick={() => navigate(`/hubs/${navette.hub_id}`)}
               className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm"
             >
-              <FaUserPlus /> Voir profil chauffeur
+              <FaBuilding /> Voir détails hub
             </button>
           </div>
         </div>
       )}
 
-      {/* Modal de confirmation */}
       {showConfirmModal && actionToConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
@@ -437,9 +425,9 @@ const NavetteActions = ({ navette, onActionComplete }) => {
                         </p>
                         <ul className="mt-2 text-sm text-green-600 list-disc list-inside">
                           <li>La navette sera marquée comme terminée</li>
-                          <li>Tous les colis seront marqués comme livrés</li>
+                          <li>Toutes les livraisons seront marquées comme livrées</li>
                           <li>Les gains seront calculés automatiquement</li>
-                          <li>Le chauffeur recevra une notification</li>
+                          <li>Le hub recevra une notification</li>
                         </ul>
                       </div>
                     )}
@@ -450,8 +438,8 @@ const NavetteActions = ({ navette, onActionComplete }) => {
                           <strong>Attention :</strong>
                         </p>
                         <ul className="mt-2 text-sm text-red-600 list-disc list-inside">
-                          <li>Tous les colis seront remis en attente</li>
-                          <li>Le chauffeur sera notifié</li>
+                          <li>Toutes les livraisons seront remises en attente</li>
+                          <li>Le hub sera notifié</li>
                           <li>Cette action est irréversible</li>
                         </ul>
                       </div>

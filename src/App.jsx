@@ -67,6 +67,10 @@ import HistoriqueGains from "./pages/Comptabilite/HistoriqueGains";
 import CommissionConfig from "./pages/Comptabilite/CommissionConfig";
 import GainsGestionnaire from "./pages/Comptabilite/GainsGestionnaire";
 
+// NOUVELLES PAGES GAINS NAVETTE
+import GainsNavetteList from "./pages/Comptabilite/GainsNavetteList";
+import NavetteGains from "./pages/Comptabilite/NavetteGains";
+
 /* ================= ROUTES PROTÉGÉES ================= */
 
 const PrivateRoute = ({ children }) => {
@@ -164,9 +168,13 @@ function App() {
             <Route path="comptabilite/impayes" element={<ImpayesList />} />
             <Route path="comptabilite/historique" element={<HistoriqueGains />} />
             
-            {/* NOUVELLES ROUTES COMMISSIONS */}
+            {/* ROUTES COMMISSIONS */}
             <Route path="comptabilite/commissions/config" element={<CommissionConfig />} />
             <Route path="comptabilite/commissions/gestionnaire/:id" element={<GainsGestionnaire />} />
+            
+            {/* ROUTES GAINS NAVETTE */}
+            <Route path="comptabilite/gains-navette" element={<GainsNavetteList />} />
+            <Route path="comptabilite/navette/:id/gains" element={<NavetteGains />} />
 
             {/* PROFIL */}
             <Route path="profile" element={<Profile />} />

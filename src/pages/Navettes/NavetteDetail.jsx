@@ -5,43 +5,31 @@ import { toast } from "react-hot-toast";
 import navetteService from "../../services/navetteService";
 import comptabiliteService from "../../services/comptabiliteService";
 import {
-  FaArrowLeft,
-  FaTruck,
-  FaMapMarkerAlt,
-  FaCalendarAlt,
-  FaUser,
-  FaBoxes,
-  FaClock,
-  FaCheckCircle,
-  FaTimesCircle,
-  FaSpinner,
-  FaEdit,
-  FaTrash,
-  FaPlay,
-  FaStop,
-  FaBan,
-  FaPlus,
-  FaMinus,
-  FaBarcode,
-  FaWeightHanging,
-  FaMoneyBillWave,
-  FaRoad,
-  FaGasPump,
-  FaTachometerAlt,
-  FaPercentage,
-  FaPrint,
-  FaDownload,
+  FaArrowLeft, FaTruck, FaMapMarkerAlt, FaCalendarAlt, FaBuilding, FaBoxes,
+  FaClock, FaCheckCircle, FaTimesCircle, FaSpinner, FaEdit, FaTrash,
+  FaPlay, FaStop, FaBan, FaPlus, FaMinus, FaWeightHanging, FaMoneyBillWave,
+  FaRoad, FaGasPump, FaTachometerAlt, FaPercentage, FaDownload, FaQrcode,
+  FaUsers, FaUserTie, FaChartLine
 } from "react-icons/fa";
-import NavetteColisList from "./components/NavetteColisList";
+import NavetteLivraisonList from "./components/NavetteLivraisonList";
+
+// Fonction utilitaire pour extraire le code d'une wilaya
+const getWilayaCode = (item) => {
+  if (!item) return null;
+  if (typeof item === 'string') return item;
+  if (typeof item === 'object' && item.code) return item.code;
+  return null;
+};
 
 const NavetteDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [navette, setNavette] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showAddColisModal, setShowAddColisModal] = useState(false);
-  const [colisDisponibles, setColisDisponibles] = useState([]);
-  const [selectedColis, setSelectedColis] = useState([]);
+  const [showAddLivraisonModal, setShowAddLivraisonModal] = useState(false);
+  const [livraisonsDisponibles, setLivraisonsDisponibles] = useState([]);
+  const [selectedLivraisons, setSelectedLivraisons] = useState([]);
+  const [loadingLivraisons, setLoadingLivraisons] = useState(false);
 
   useEffect(() => {
     fetchNavette();
@@ -51,7 +39,6 @@ const NavetteDetail = () => {
     try {
       setLoading(true);
       const response = await navetteService.getNavetteById(id);
-      console.log("Navette chargée:", response.data);
       setNavette(response.data);
     } catch (error) {
       console.error("Erreur chargement navette:", error);
@@ -62,19 +49,23 @@ const NavetteDetail = () => {
     }
   };
 
-  const fetchColisDisponibles = async () => {
+  const fetchLivraisonsDisponibles = async () => {
     try {
-      // Simuler l'appel API pour les colis disponibles dans la même wilaya
-      const response = await navetteService.getSuggestions({
-        wilaya_depart: navette?.wilaya_depart_id || "16",
+      setLoadingLivraisons(true);
+      const response = await navetteService.getLivraisonsDisponibles({
+        wilaya_depart: navette?.wilaya_depart_id
       });
-      // Extraire les colis des suggestions
-      const colis = response.data?.flatMap((s) => s.colis_exemples || []) || [];
-      console.log("Colis disponibles:", colis);
-      setColisDisponibles(colis);
+      let livraisons = response.data?.data || response.data || [];
+      
+      const existingIds = navette?.livraisons?.map(l => l.id) || [];
+      livraisons = livraisons.filter(l => !existingIds.includes(l.id));
+      
+      setLivraisonsDisponibles(livraisons);
     } catch (error) {
-      console.error("Erreur chargement colis:", error);
-      toast.error("Erreur lors du chargement des colis disponibles");
+      console.error("Erreur chargement livraisons:", error);
+      toast.error("Erreur lors du chargement des livraisons disponibles");
+    } finally {
+      setLoadingLivraisons(false);
     }
   };
 
@@ -84,84 +75,64 @@ const NavetteDetail = () => {
       switch (newStatus) {
         case "en_cours":
           response = await navetteService.demarrerNavette(id);
+          toast.success(response.message || "Navette démarrée");
           break;
         case "terminee":
           response = await navetteService.terminerNavette(id);
+          toast.success(response.message || "Navette terminée");
           break;
         case "annulee":
           response = await navetteService.annulerNavette(id);
+          toast.success(response.message || "Navette annulée");
           break;
-        default:
-          return;
+        default: return;
       }
-      toast.success(response.message || "Statut mis à jour");
       fetchNavette();
     } catch (error) {
-      toast.error(
-        error.response?.data?.message || "Erreur lors du changement de statut",
-      );
+      toast.error(error.response?.data?.message || "Erreur lors du changement de statut");
     }
   };
 
-  const handleAddColis = async () => {
-    if (selectedColis.length === 0) {
-      toast.error("Veuillez sélectionner au moins un colis");
+  const handleAddLivraisons = async () => {
+    if (selectedLivraisons.length === 0) {
+      toast.error("Veuillez sélectionner au moins une livraison");
       return;
     }
 
-    console.log("Colis à ajouter (IDs):", selectedColis);
-
     try {
-      const response = await navetteService.ajouterColis(id, selectedColis);
-      toast.success(response.message || "Colis ajoutés avec succès");
-      setShowAddColisModal(false);
-      setSelectedColis([]);
+      const response = await navetteService.ajouterLivraisons(id, selectedLivraisons);
+      toast.success(response.message || "Livraisons ajoutées avec succès");
+      setShowAddLivraisonModal(false);
+      setSelectedLivraisons([]);
       fetchNavette();
     } catch (error) {
-      console.error("Erreur ajout colis:", error);
-      console.error("Détails erreur:", error.response);
-
+      console.error("Erreur ajout livraisons:", error);
       if (error.response?.status === 422) {
         const errors = error.response.data.errors;
-        console.error("Erreurs de validation:", errors);
-
         let errorMsg = "Erreur de validation: ";
-        if (errors["colis_ids"]) {
-          errorMsg += errors["colis_ids"].join(", ");
-        } else if (errors["colis_ids.0"]) {
-          errorMsg += "Le premier colis sélectionné n'existe pas";
-        } else {
-          errorMsg = Object.values(errors).flat().join(", ");
-        }
+        if (errors["livraison_ids"]) errorMsg += errors["livraison_ids"].join(", ");
+        else errorMsg = Object.values(errors).flat().join(", ");
         toast.error(errorMsg);
-      } else if (error.response?.status === 400) {
-        toast.error(error.response.data.message || "Requête invalide");
       } else {
-        toast.error(
-          error.response?.data?.message || "Erreur lors de l'ajout des colis",
-        );
+        toast.error(error.response?.data?.message || "Erreur lors de l'ajout des livraisons");
       }
     }
   };
 
-  const handleRemoveColis = async (colisId) => {
-    if (!window.confirm("Retirer ce colis de la navette ?")) {
-      return;
-    }
+  const handleRemoveLivraison = async (livraisonId) => {
+    if (!window.confirm("Retirer cette livraison de la navette ?")) return;
 
     try {
-      const response = await navetteService.retirerColis(id, [colisId]);
-      toast.success(response.message || "Colis retiré");
+      const response = await navetteService.retirerLivraisons(id, [livraisonId]);
+      toast.success(response.message || "Livraison retirée");
       fetchNavette();
     } catch (error) {
-      toast.error("Erreur lors du retrait du colis");
+      toast.error("Erreur lors du retrait de la livraison");
     }
   };
 
   const handleDelete = async () => {
-    if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette navette ?")) {
-      return;
-    }
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette navette ?")) return;
 
     try {
       await navetteService.deleteNavette(id);
@@ -181,30 +152,56 @@ const NavetteDetail = () => {
     }
   };
 
+  const handleViewGains = () => {
+    navigate(`/comptabilite/navette/${id}/gains`);
+  };
+
   const getStatusBadge = (status) => {
     const badges = {
-      planifiee: {
-        color: "bg-blue-100 text-blue-800",
-        icon: FaClock,
-        label: "Planifiée",
-      },
-      en_cours: {
-        color: "bg-yellow-100 text-yellow-800",
-        icon: FaSpinner,
-        label: "En cours",
-      },
-      terminee: {
-        color: "bg-green-100 text-green-800",
-        icon: FaCheckCircle,
-        label: "Terminée",
-      },
-      annulee: {
-        color: "bg-red-100 text-red-800",
-        icon: FaTimesCircle,
-        label: "Annulée",
-      },
+      planifiee: { color: "bg-blue-100 text-blue-800", icon: FaClock, label: "Planifiée" },
+      en_cours: { color: "bg-yellow-100 text-yellow-800", icon: FaSpinner, label: "En cours" },
+      terminee: { color: "bg-green-100 text-green-800", icon: FaCheckCircle, label: "Terminée" },
+      annulee: { color: "bg-red-100 text-red-800", icon: FaTimesCircle, label: "Annulée" },
     };
     return badges[status] || badges.planifiee;
+  };
+
+  // Fonction pour extraire les codes des wilayas de transit
+  const getTransitCodes = () => {
+    if (!navette?.wilayas_transit) return [];
+    return navette.wilayas_transit.map(item => getWilayaCode(item)).filter(code => code);
+  };
+
+  // Construire la liste des étapes du trajet
+  const buildEtapeList = () => {
+    const etapes = [];
+    if (!navette) return etapes;
+    
+    // Étape 1: Départ
+    etapes.push({ 
+      type: 'depart', 
+      code: navette.wilaya_depart_id,
+      time: navette.heure_depart
+    });
+    
+    // Étapes: Wilayas de transit
+    const transitCodes = getTransitCodes();
+    transitCodes.forEach((code, idx) => {
+      etapes.push({ 
+        type: 'transit', 
+        code: code,
+        ordre: idx + 1
+      });
+    });
+    
+    // Étape finale: Arrivée
+    etapes.push({ 
+      type: 'arrivee', 
+      code: navette.wilaya_arrivee_id,
+      time: navette.heure_arrivee
+    });
+    
+    return etapes;
   };
 
   if (loading) {
@@ -219,59 +216,45 @@ const NavetteDetail = () => {
 
   const status = getStatusBadge(navette.status);
   const StatusIcon = status.icon;
+  const nbLivraisons = navette.nb_livraisons || navette.livraisons?.length || 0;
+  const etapes = buildEtapeList();
+  const totalEtapes = etapes.length;
 
   return (
     <div className="container mx-auto px-4 py-8">
       {/* En-tête */}
       <div className="mb-6">
-        <button
-          onClick={() => navigate("/navettes")}
-          className="flex items-center gap-2 text-primary-600 hover:text-primary-800 mb-4"
-        >
+        <button onClick={() => navigate("/navettes")} className="flex items-center gap-2 text-primary-600 hover:text-primary-800 mb-4">
           <FaArrowLeft /> Retour aux navettes
         </button>
-
-        <div className="flex justify-between items-start">
+        <div className="flex justify-between items-start flex-wrap gap-4">
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-2xl font-bold text-gray-900">
-                Navette {navette.reference}
-              </h1>
-              <span
-                className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2 ${status.color}`}
-              >
-                <StatusIcon className="w-4 h-4" />
-                {status.label}
+            <div className="flex items-center gap-3 mb-2 flex-wrap">
+              <h1 className="text-2xl font-bold text-gray-900">Navette {navette.reference}</h1>
+              <span className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2 ${status.color}`}>
+                <StatusIcon className="w-4 h-4" /> {status.label}
               </span>
             </div>
-            <p className="text-gray-600">
-              Créée le{" "}
-              {new Date(navette.created_at).toLocaleDateString("fr-FR")}
-            </p>
+            <p className="text-gray-600">Créée le {new Date(navette.created_at).toLocaleDateString("fr-FR")}</p>
           </div>
-
           <div className="flex gap-2">
-            <button
-              onClick={handleExportPDF}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-            >
+            <button onClick={handleExportPDF} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
               <FaDownload /> PDF
             </button>
             {navette.status === "planifiee" && (
               <>
-                <button
-                  onClick={() => navigate(`/navettes/edit/${id}`)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                >
+                <button onClick={() => navigate(`/navettes/edit/${id}`)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                   <FaEdit /> Modifier
                 </button>
-                <button
-                  onClick={handleDelete}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-                >
+                <button onClick={handleDelete} className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
                   <FaTrash /> Supprimer
                 </button>
               </>
+            )}
+            {navette.status === "terminee" && (
+              <button onClick={handleViewGains} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                <FaChartLine /> Voir les gains
+              </button>
             )}
           </div>
         </div>
@@ -280,20 +263,12 @@ const NavetteDetail = () => {
       {/* Actions rapides */}
       {navette.status === "planifiee" && (
         <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">
-            Actions rapides
-          </h2>
-          <div className="flex gap-3">
-            <button
-              onClick={() => handleStatusChange("en_cours")}
-              className="flex items-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition"
-            >
+          <h2 className="text-lg font-semibold text-gray-900 mb-3">Actions rapides</h2>
+          <div className="flex gap-3 flex-wrap">
+            <button onClick={() => handleStatusChange("en_cours")} className="flex items-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700">
               <FaPlay /> Démarrer la navette
             </button>
-            <button
-              onClick={() => handleStatusChange("annulee")}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-            >
+            <button onClick={() => handleStatusChange("annulee")} className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
               <FaBan /> Annuler la navette
             </button>
           </div>
@@ -302,20 +277,12 @@ const NavetteDetail = () => {
 
       {navette.status === "en_cours" && (
         <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">
-            Actions rapides
-          </h2>
-          <div className="flex gap-3">
-            <button
-              onClick={() => handleStatusChange("terminee")}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-            >
+          <h2 className="text-lg font-semibold text-gray-900 mb-3">Actions rapides</h2>
+          <div className="flex gap-3 flex-wrap">
+            <button onClick={() => handleStatusChange("terminee")} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
               <FaStop /> Terminer la navette
             </button>
-            <button
-              onClick={() => handleStatusChange("annulee")}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-            >
+            <button onClick={() => handleStatusChange("annulee")} className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
               <FaBan /> Annuler la navette
             </button>
           </div>
@@ -324,73 +291,65 @@ const NavetteDetail = () => {
 
       {/* Informations principales */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        {/* Carte infos trajet */}
+        {/* Carte trajet avec timeline */}
         <div className="bg-white rounded-lg shadow p-6 lg:col-span-2">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <FaMapMarkerAlt className="text-primary-600" />
-            Trajet
+            <FaMapMarkerAlt className="text-primary-600" /> Trajet
           </h2>
-
+          
+          {/* Timeline avec toutes les étapes */}
           <div className="relative mb-8">
-            {/* Timeline du trajet */}
             <div className="flex items-center justify-between">
-              {/* Départ */}
-              <div className="text-center flex-1">
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <FaMapMarkerAlt className="text-blue-600" />
-                </div>
-                <div className="font-semibold">{navette.wilaya_depart_id}</div>
-                <div className="text-sm text-gray-600">
-                  {new Date(navette.date_depart).toLocaleTimeString("fr-FR", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </div>
-              </div>
-
-              {/* Ligne de progression */}
-              <div className="flex-1 relative">
-                <div className="h-1 bg-gray-200 rounded-full">
-                  <div
-                    className="h-1 bg-primary-600 rounded-full"
-                    style={{
-                      width: navette.status === "terminee" ? "100%" : "50%",
-                    }}
-                  ></div>
-                </div>
-              </div>
-
-              {/* Transit (optionnel) */}
-              {navette.wilaya_transit_id && (
-                <>
-                  <div className="text-center flex-1">
-                    <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                      <FaMapMarkerAlt className="text-purple-600" />
+              {etapes.map((etape, idx) => {
+                const isLast = idx === totalEtapes - 1;
+                const bgColor = {
+                  depart: "bg-blue-100",
+                  transit: "bg-purple-100",
+                  arrivee: "bg-green-100"
+                }[etape.type];
+                
+                const iconColor = {
+                  depart: "text-blue-600",
+                  transit: "text-purple-600",
+                  arrivee: "text-green-600"
+                }[etape.type];
+                
+                return (
+                  <React.Fragment key={idx}>
+                    {/* Étape */}
+                    <div className="text-center flex-1">
+                      <div className={`w-10 h-10 ${bgColor} rounded-full flex items-center justify-center mx-auto mb-2`}>
+                        <FaMapMarkerAlt className={`${iconColor}`} />
+                      </div>
+                      <div className="font-semibold">{etape.code}</div>
+                      <div className="text-xs text-gray-500">
+                        {etape.type === 'depart' ? 'Départ' : 
+                         etape.type === 'transit' ? `Transit ${etape.ordre}` : 
+                         'Arrivée'}
+                      </div>
+                      {etape.time && (
+                        <div className="text-xs text-gray-400 mt-1">
+                          {etape.time}
+                        </div>
+                      )}
                     </div>
-                    <div className="font-semibold">
-                      {navette.wilaya_transit_id}
-                    </div>
-                    <div className="text-sm text-gray-600">Transit</div>
-                  </div>
-                  <div className="flex-1 relative">
-                    <div className="h-1 bg-gray-200 rounded-full"></div>
-                  </div>
-                </>
-              )}
-
-              {/* Arrivée */}
-              <div className="text-center flex-1">
-                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <FaMapMarkerAlt className="text-green-600" />
-                </div>
-                <div className="font-semibold">{navette.wilaya_arrivee_id}</div>
-                <div className="text-sm text-gray-600">
-                  {new Date(navette.date_arrivee_prevue).toLocaleTimeString(
-                    "fr-FR",
-                    { hour: "2-digit", minute: "2-digit" },
-                  )}
-                </div>
-              </div>
+                    
+                    {/* Ligne entre les étapes (sauf après la dernière) */}
+                    {!isLast && (
+                      <div className="flex-1 relative">
+                        <div className="h-1 bg-gray-200 rounded-full">
+                          {navette.status === 'terminee' && (
+                            <div 
+                              className="h-1 bg-primary-600 rounded-full" 
+                              style={{ width: '100%' }}
+                            ></div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </React.Fragment>
+                );
+              })}
             </div>
           </div>
 
@@ -408,30 +367,21 @@ const NavetteDetail = () => {
                 <FaClock className="w-4 h-4" />
                 <span className="text-xs">Durée estimée</span>
               </div>
-              <p className="font-semibold">
-                {navette.distance_km ? Math.round(navette.distance_km / 70) : 0}{" "}
-                h
-              </p>
+              <p className="font-semibold">{navette.distance_km ? Math.round(navette.distance_km / 70) : 0} h</p>
             </div>
             <div className="bg-gray-50 rounded-lg p-3">
               <div className="flex items-center gap-2 text-gray-600 mb-1">
                 <FaGasPump className="w-4 h-4" />
                 <span className="text-xs">Carburant</span>
               </div>
-              <p className="font-semibold">
-                {comptabiliteService.formatMontant(
-                  navette.carburant_estime || 0,
-                )}
-              </p>
+              <p className="font-semibold">{comptabiliteService.formatMontant(navette.carburant_estime || 0)}</p>
             </div>
             <div className="bg-gray-50 rounded-lg p-3">
               <div className="flex items-center gap-2 text-gray-600 mb-1">
                 <FaMoneyBillWave className="w-4 h-4" />
                 <span className="text-xs">Péages</span>
               </div>
-              <p className="font-semibold">
-                {comptabiliteService.formatMontant(navette.peages_estimes || 0)}
-              </p>
+              <p className="font-semibold">{comptabiliteService.formatMontant(navette.peages_estimes || 0)}</p>
             </div>
           </div>
         </div>
@@ -439,32 +389,22 @@ const NavetteDetail = () => {
         {/* Carte statistiques */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <FaTachometerAlt className="text-primary-600" />
-            Statistiques
+            <FaTachometerAlt className="text-primary-600" /> Statistiques
           </h2>
-
           <div className="space-y-4">
             <div>
               <div className="flex justify-between text-sm text-gray-600 mb-1">
                 <span>Taux de remplissage</span>
-                <span className="font-semibold">
-                  {navette.taux_remplissage || 0}%
-                </span>
+                <span className="font-semibold">{navette.taux_remplissage || 0}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-primary-600 h-2 rounded-full"
-                  style={{ width: `${navette.taux_remplissage || 0}%` }}
-                ></div>
+                <div className="bg-primary-600 h-2 rounded-full" style={{ width: `${navette.taux_remplissage || 0}%` }}></div>
               </div>
             </div>
-
             <div className="border-t border-gray-200 pt-4">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-gray-600">Colis chargés</span>
-                <span className="font-semibold text-lg">
-                  {navette.nb_colis || 0}
-                </span>
+                <span className="text-gray-600">Livraisons</span>
+                <span className="font-semibold text-lg">{nbLivraisons}</span>
               </div>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600">Capacité max</span>
@@ -472,34 +412,22 @@ const NavetteDetail = () => {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Poids total</span>
-                <span className="font-semibold">
-                  {navette.poids_total || 0} kg
-                </span>
+                <span className="font-semibold">{navette.poids_total || 0} kg</span>
               </div>
             </div>
-
             <div className="border-t border-gray-200 pt-4">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600">Prix base</span>
-                <span className="font-semibold text-green-600">
-                  {comptabiliteService.formatMontant(navette.prix_base)}
-                </span>
+                <span className="font-semibold text-green-600">{comptabiliteService.formatMontant(navette.prix_base)}</span>
               </div>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-gray-600">Prix par colis</span>
-                <span className="font-semibold text-green-600">
-                  {comptabiliteService.formatMontant(navette.prix_par_colis)}
-                </span>
+                <span className="text-gray-600">Prix par livraison</span>
+                <span className="font-semibold text-green-600">{comptabiliteService.formatMontant(navette.prix_par_livraison)}</span>
               </div>
               <div className="flex justify-between items-center pt-2 border-t border-gray-200">
-                <span className="font-semibold text-gray-900">
-                  Total estimé
-                </span>
+                <span className="font-semibold text-gray-900">Total estimé</span>
                 <span className="font-semibold text-lg text-green-700">
-                  {comptabiliteService.formatMontant(
-                    navette.prix_base +
-                      navette.nb_colis * navette.prix_par_colis,
-                  )}
+                  {comptabiliteService.formatMontant(navette.prix_base + nbLivraisons * navette.prix_par_livraison)}
                 </span>
               </div>
             </div>
@@ -507,120 +435,147 @@ const NavetteDetail = () => {
         </div>
       </div>
 
-      {/* Informations chauffeur */}
-      {navette.chauffeur && (
+      {/* Hub assigné */}
+      {navette.hub && (
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <FaUser className="text-primary-600" />
-            Chauffeur assigné
+            <FaBuilding className="text-primary-600" /> Hub assigné
           </h2>
-
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center">
-              <FaUser className="w-8 h-8 text-primary-600" />
+              <FaBuilding className="w-8 h-8 text-primary-600" />
             </div>
             <div>
-              <p className="font-semibold text-lg">
-                {navette.chauffeur.user?.nom} {navette.chauffeur.user?.prenom}
-              </p>
-              <p className="text-gray-600">{navette.chauffeur.user?.email}</p>
-              <p className="text-gray-600">
-                {navette.chauffeur.user?.telephone}
-              </p>
-            </div>
-            <div className="ml-auto">
-              <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
-                {navette.chauffeur.type === "chauffeur"
-                  ? "Chauffeur"
-                  : "Livreur"}
-              </span>
+              <p className="font-semibold text-lg">{navette.hub.nom}</p>
+              <p className="text-gray-600">{navette.hub.email}</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Liste des colis */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <FaBoxes className="text-primary-600" />
-            Colis dans la navette ({navette.nb_colis || 0})
+      {/* Répartition des gains */}
+      {navette.repartition && navette.repartition.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <FaUsers className="text-primary-600" />
+            Répartition des gains
           </h2>
+          
+          <div className="space-y-4">
+            {navette.repartition.map((acteur, index) => (
+              <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:shadow-md transition">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                    acteur.type === 'gestionnaire' ? 'bg-blue-100' : 'bg-purple-100'
+                  }`}>
+                    {acteur.type === 'gestionnaire' ? (
+                      <FaUserTie className="text-blue-600" />
+                    ) : (
+                      <FaBuilding className="text-purple-600" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">{acteur.nom}</p>
+                    <p className="text-xs text-gray-500">
+                      {acteur.type === 'gestionnaire' 
+                        ? `Gestionnaire de la wilaya ${acteur.wilaya}`
+                        : 'Hub logistique'}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xl font-bold text-green-600">
+                    {acteur.part}%
+                  </p>
+                  <p className="text-xs text-gray-500">du prix de chaque livraison</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-gray-700">Total acteurs</span>
+              <span className="text-sm font-bold text-primary-600 bg-primary-100 px-3 py-1 rounded-full">
+                {navette.repartition.length} acteur(s)
+              </span>
+            </div>
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-sm font-semibold text-gray-700">Part par acteur</span>
+              <span className="text-sm font-bold text-green-600 bg-green-100 px-3 py-1 rounded-full">
+                {navette.repartition.length > 0 ? (100 / navette.repartition.length).toFixed(2) : 0}%
+              </span>
+            </div>
+            <p className="text-xs text-blue-600 mt-3 flex items-center gap-1">
+              <FaCheckCircle className="w-3 h-3" />
+              À la terminaison de la navette, chaque acteur recevra automatiquement sa part du prix de chaque livraison.
+            </p>
+          </div>
+        </div>
+      )}
 
+      {/* Liste des livraisons */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <FaBoxes className="text-primary-600" /> Livraisons ({nbLivraisons})
+          </h2>
           {navette.status === "planifiee" && (
-            <button
-              onClick={() => {
-                fetchColisDisponibles();
-                setShowAddColisModal(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition"
+            <button 
+              onClick={() => { fetchLivraisonsDisponibles(); setShowAddLivraisonModal(true); }} 
+              className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
             >
-              <FaPlus /> Ajouter des colis
+              <FaPlus /> Ajouter des livraisons
             </button>
           )}
         </div>
-
-        <NavetteColisList
-          colis={navette.colis || []}
-          onRemove={handleRemoveColis}
-          canRemove={navette.status === "planifiee"}
+        <NavetteLivraisonList 
+          livraisons={navette.livraisons || []} 
+          onRemove={handleRemoveLivraison} 
+          canRemove={navette.status === "planifiee"} 
         />
       </div>
 
-      {/* Modal d'ajout de colis */}
-      {showAddColisModal && (
+      {/* Modal d'ajout de livraisons */}
+      {showAddLivraisonModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-900">
-                Ajouter des colis
-              </h2>
-              <p className="text-gray-600">
-                Sélectionnez les colis à ajouter à la navette
-              </p>
+              <h2 className="text-xl font-bold text-gray-900">Ajouter des livraisons</h2>
+              <p className="text-gray-600">Sélectionnez les livraisons à ajouter à la navette</p>
             </div>
             <div className="p-6">
-              {colisDisponibles.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">
-                  Aucun colis disponible dans cette wilaya
-                </p>
+              {loadingLivraisons ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+                  <p className="text-gray-500 mt-2">Chargement...</p>
+                </div>
+              ) : livraisonsDisponibles.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">Aucune livraison disponible</p>
               ) : (
                 <div className="space-y-4">
-                  {colisDisponibles.map((colis) => (
-                    <div
-                      key={colis.id}
-                      className="border border-gray-200 rounded-lg p-4"
-                    >
+                  {livraisonsDisponibles.map((livraison) => (
+                    <div key={livraison.id} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex items-start gap-4">
-                        <input
-                          type="checkbox"
-                          checked={selectedColis.includes(colis.id)}
+                        <input 
+                          type="checkbox" 
+                          checked={selectedLivraisons.includes(livraison.id)} 
                           onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedColis([...selectedColis, colis.id]);
-                            } else {
-                              setSelectedColis(
-                                selectedColis.filter((id) => id !== colis.id),
-                              );
-                            }
-                          }}
-                          className="mt-1"
+                            if (e.target.checked) setSelectedLivraisons([...selectedLivraisons, livraison.id]);
+                            else setSelectedLivraisons(selectedLivraisons.filter(id => id !== livraison.id));
+                          }} 
+                          className="mt-1" 
                         />
                         <div className="flex-1">
-                          <div className="flex justify-between">
+                          <div className="flex justify-between flex-wrap gap-2">
                             <div>
-                              <p className="font-semibold">{colis.label}</p>
-                              <p className="text-sm text-gray-600">
-                                Destination: {colis.destination}
-                              </p>
+                              <p className="font-semibold">{livraison.reference}</p>
+                              <p className="text-sm text-gray-600">Client: {livraison.client}</p>
+                              <p className="text-sm text-gray-600">Destination: {livraison.destination}</p>
                             </div>
                             <div className="text-right">
-                              <p className="font-semibold text-green-600">
-                                {comptabiliteService.formatMontant(colis.prix)}
-                              </p>
-                              <p className="text-sm text-gray-600">
-                                {colis.poids} kg
-                              </p>
+                              <p className="font-semibold text-green-600">{comptabiliteService.formatMontant(livraison.prix)}</p>
+                              <p className="text-sm text-gray-600">{livraison.poids} kg</p>
                             </div>
                           </div>
                         </div>
@@ -631,22 +586,19 @@ const NavetteDetail = () => {
               )}
             </div>
             <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
-              <button
-                onClick={() => setShowAddColisModal(false)}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition"
-              >
+              <button onClick={() => setShowAddLivraisonModal(false)} className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400">
                 Annuler
               </button>
-              <button
-                onClick={handleAddColis}
-                disabled={selectedColis.length === 0}
+              <button 
+                onClick={handleAddLivraisons} 
+                disabled={selectedLivraisons.length === 0} 
                 className={`px-4 py-2 rounded-lg transition ${
-                  selectedColis.length > 0
-                    ? "bg-primary-600 text-white hover:bg-primary-700"
+                  selectedLivraisons.length > 0 
+                    ? "bg-primary-600 text-white hover:bg-primary-700" 
                     : "bg-gray-300 text-gray-500 cursor-not-allowed"
                 }`}
               >
-                Ajouter {selectedColis.length} colis
+                Ajouter {selectedLivraisons.length} livraison(s)
               </button>
             </div>
           </div>

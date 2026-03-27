@@ -9,7 +9,7 @@ import {
     FaMoneyBillWave,
     FaPercentage,
     FaCalendarAlt,
-    FaUser,
+    FaBuilding,
     FaCheckCircle,
     FaTimesCircle,
     FaSpinner,
@@ -53,13 +53,12 @@ const NavetteStats = ({ navette, stats = null }) => {
 
     const StatusIcon = getStatusIcon(navette.status);
 
-    // Calculs
-    const nbColis = navette.nb_colis || navette.colis?.length || 0;
+    const nbLivraisons = navette.nb_livraisons || navette.livraisons?.length || 0;
     const tauxRemplissage = navette.taux_remplissage || 
-        (navette.capacite_max > 0 ? (nbColis / navette.capacite_max) * 100 : 0);
+        (navette.capacite_max > 0 ? (nbLivraisons / navette.capacite_max) * 100 : 0);
     
-    const revenuEstime = (navette.prix_base || 0) + (nbColis * (navette.prix_par_colis || 0));
-    const revenuReel = navette.revenu_reel || revenuEstime; // À remplacer par vraie donnée
+    const revenuEstime = (navette.prix_base || 0) + (nbLivraisons * (navette.prix_par_livraison || 0));
+    const revenuReel = navette.revenu_reel || revenuEstime;
 
     const dureeEstimee = navette.duree_estimee || 
         (navette.distance_km ? Math.round(navette.distance_km / 70 * 60) : null);
@@ -68,7 +67,6 @@ const NavetteStats = ({ navette, stats = null }) => {
 
     return (
         <div className="space-y-4">
-            {/* Carte statistiques globales */}
             <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <FaChartLine className="text-primary-600" />
@@ -96,9 +94,9 @@ const NavetteStats = ({ navette, stats = null }) => {
                             <div className="p-2 bg-green-100 rounded-lg">
                                 <FaBoxes className="w-5 h-5 text-green-600" />
                             </div>
-                            <span className="text-sm text-gray-600">Colis</span>
+                            <span className="text-sm text-gray-600">Livraisons</span>
                         </div>
-                        <p className="text-2xl font-bold text-gray-900">{nbColis}</p>
+                        <p className="text-2xl font-bold text-gray-900">{nbLivraisons}</p>
                         <p className="text-xs text-gray-500">Capacité: {navette.capacite_max || 0}</p>
                     </div>
 
@@ -132,7 +130,6 @@ const NavetteStats = ({ navette, stats = null }) => {
                 </div>
             </div>
 
-            {/* Carte chronométrage */}
             <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <FaClock className="text-primary-600" />
@@ -213,7 +210,6 @@ const NavetteStats = ({ navette, stats = null }) => {
                 )}
             </div>
 
-            {/* Carte financière */}
             <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <FaMoneyBillWave className="text-primary-600" />
@@ -229,8 +225,8 @@ const NavetteStats = ({ navette, stats = null }) => {
                                 <span className="font-medium">{formatMontant(navette.prix_base)}</span>
                             </div>
                             <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                                <span className="text-sm text-gray-600">Prix par colis</span>
-                                <span className="font-medium">{formatMontant(navette.prix_par_colis)}</span>
+                                <span className="text-sm text-gray-600">Prix par livraison</span>
+                                <span className="font-medium">{formatMontant(navette.prix_par_livraison)}</span>
                             </div>
                             <div className="flex justify-between items-center p-2 bg-blue-50 rounded">
                                 <span className="text-sm text-blue-600">Total estimé</span>
@@ -274,7 +270,6 @@ const NavetteStats = ({ navette, stats = null }) => {
                 </div>
             </div>
 
-            {/* Si des stats supplémentaires sont fournies */}
             {stats && (
                 <div className="bg-white rounded-lg shadow p-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -311,7 +306,6 @@ const NavetteStats = ({ navette, stats = null }) => {
                 </div>
             )}
 
-            {/* Informations supplémentaires */}
             <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <FaCalendarAlt className="text-primary-600" />
@@ -329,12 +323,12 @@ const NavetteStats = ({ navette, stats = null }) => {
                             {navette.created_at ? new Date(navette.created_at).toLocaleDateString('fr-FR') : 'N/A'}
                         </p>
                     </div>
-                    {navette.chauffeur && (
+                    {navette.hub && (
                         <div className="col-span-2">
-                            <p className="text-gray-500">Chauffeur</p>
+                            <p className="text-gray-500">Hub</p>
                             <p className="font-medium">
-                                {navette.chauffeur.user?.nom} {navette.chauffeur.user?.prenom}
-                                {navette.chauffeur.user?.telephone && ` - ${navette.chauffeur.user.telephone}`}
+                                {navette.hub.nom}
+                                {navette.hub.email && ` - ${navette.hub.email}`}
                             </p>
                         </div>
                     )}

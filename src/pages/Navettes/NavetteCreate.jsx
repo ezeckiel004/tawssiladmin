@@ -3,7 +3,6 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import navetteService from "../../services/navetteService";
-import api from "../../services/api";
 import comptabiliteService from "../../services/comptabiliteService";
 import {
   FaArrowLeft,
@@ -14,223 +13,193 @@ import {
   FaMapMarkerAlt,
   FaClock,
   FaCalendarAlt,
-  FaUser,
+  FaBuilding,
   FaBoxes,
   FaMoneyBillWave,
+  FaPlusCircle,
+  FaMinusCircle,
+  FaUsers,
+  FaUserTie,
 } from "react-icons/fa";
 
 const NavetteCreate = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [livreurs, setLivreurs] = useState([]);
-  const [loadingLivreurs, setLoadingLivreurs] = useState(false);
-  const [loadingColis, setLoadingColis] = useState(false);
+  const [hubs, setHubs] = useState([]);
+  const [loadingHubs, setLoadingHubs] = useState(false);
+  const [loadingLivraisons, setLoadingLivraisons] = useState(false);
   
   // Liste des wilayas
   const [wilayas] = useState([
-    { code: "01", nom: "Adrar" },
-    { code: "02", nom: "Chlef" },
-    { code: "03", nom: "Laghouat" },
-    { code: "04", nom: "Oum El Bouaghi" },
-    { code: "05", nom: "Batna" },
-    { code: "06", nom: "Béjaïa" },
-    { code: "07", nom: "Biskra" },
-    { code: "08", nom: "Béchar" },
-    { code: "09", nom: "Blida" },
-    { code: "10", nom: "Bouira" },
-    { code: "11", nom: "Tamanrasset" },
-    { code: "12", nom: "Tébessa" },
-    { code: "13", nom: "Tlemcen" },
-    { code: "14", nom: "Tiaret" },
-    { code: "15", nom: "Tizi Ouzou" },
-    { code: "16", nom: "Alger" },
-    { code: "17", nom: "Djelfa" },
-    { code: "18", nom: "Jijel" },
-    { code: "19", nom: "Sétif" },
-    { code: "20", nom: "Saïda" },
-    { code: "21", nom: "Skikda" },
-    { code: "22", nom: "Sidi Bel Abbès" },
-    { code: "23", nom: "Annaba" },
-    { code: "24", nom: "Guelma" },
-    { code: "25", nom: "Constantine" },
-    { code: "26", nom: "Médéa" },
-    { code: "27", nom: "Mostaganem" },
-    { code: "28", nom: "M'Sila" },
-    { code: "29", nom: "Mascara" },
-    { code: "30", nom: "Ouargla" },
-    { code: "31", nom: "Oran" },
-    { code: "32", nom: "El Bayadh" },
-    { code: "33", nom: "Illizi" },
-    { code: "34", nom: "Bordj Bou Arréridj" },
-    { code: "35", nom: "Boumerdès" },
-    { code: "36", nom: "El Tarf" },
-    { code: "37", nom: "Tindouf" },
-    { code: "38", nom: "Tissemsilt" },
-    { code: "39", nom: "El Oued" },
-    { code: "40", nom: "Khenchela" },
-    { code: "41", nom: "Souk Ahras" },
-    { code: "42", nom: "Tipaza" },
-    { code: "43", nom: "Mila" },
-    { code: "44", nom: "Aïn Defla" },
-    { code: "45", nom: "Naâma" },
-    { code: "46", nom: "Aïn Témouchent" },
-    { code: "47", nom: "Ghardaïa" },
-    { code: "48", nom: "Relizane" },
-    { code: "49", nom: "Timimoun" },
-    { code: "50", nom: "Bordj Badji Mokhtar" },
-    { code: "51", nom: "Ouled Djellal" },
-    { code: "52", nom: "Béni Abbès" },
-    { code: "53", nom: "In Salah" },
-    { code: "54", nom: "In Guezzam" },
-    { code: "55", nom: "Touggourt" },
-    { code: "56", nom: "Djanet" },
-    { code: "57", nom: "El M'Ghair" },
+    { code: "01", nom: "Adrar" }, { code: "02", nom: "Chlef" }, { code: "03", nom: "Laghouat" },
+    { code: "04", nom: "Oum El Bouaghi" }, { code: "05", nom: "Batna" }, { code: "06", nom: "Béjaïa" },
+    { code: "07", nom: "Biskra" }, { code: "08", nom: "Béchar" }, { code: "09", nom: "Blida" },
+    { code: "10", nom: "Bouira" }, { code: "11", nom: "Tamanrasset" }, { code: "12", nom: "Tébessa" },
+    { code: "13", nom: "Tlemcen" }, { code: "14", nom: "Tiaret" }, { code: "15", nom: "Tizi Ouzou" },
+    { code: "16", nom: "Alger" }, { code: "17", nom: "Djelfa" }, { code: "18", nom: "Jijel" },
+    { code: "19", nom: "Sétif" }, { code: "20", nom: "Saïda" }, { code: "21", nom: "Skikda" },
+    { code: "22", nom: "Sidi Bel Abbès" }, { code: "23", nom: "Annaba" }, { code: "24", nom: "Guelma" },
+    { code: "25", nom: "Constantine" }, { code: "26", nom: "Médéa" }, { code: "27", nom: "Mostaganem" },
+    { code: "28", nom: "M'Sila" }, { code: "29", nom: "Mascara" }, { code: "30", nom: "Ouargla" },
+    { code: "31", nom: "Oran" }, { code: "32", nom: "El Bayadh" }, { code: "33", nom: "Illizi" },
+    { code: "34", nom: "Bordj Bou Arréridj" }, { code: "35", nom: "Boumerdès" }, { code: "36", nom: "El Tarf" },
+    { code: "37", nom: "Tindouf" }, { code: "38", nom: "Tissemsilt" }, { code: "39", nom: "El Oued" },
+    { code: "40", nom: "Khenchela" }, { code: "41", nom: "Souk Ahras" }, { code: "42", nom: "Tipaza" },
+    { code: "43", nom: "Mila" }, { code: "44", nom: "Aïn Defla" }, { code: "45", nom: "Naâma" },
+    { code: "46", nom: "Aïn Témouchent" }, { code: "47", nom: "Ghardaïa" }, { code: "48", nom: "Relizane" },
+    { code: "49", nom: "Timimoun" }, { code: "50", nom: "Bordj Badji Mokhtar" }, { code: "51", nom: "Ouled Djellal" },
+    { code: "52", nom: "Béni Abbès" }, { code: "53", nom: "In Salah" }, { code: "54", nom: "In Guezzam" },
+    { code: "55", nom: "Touggourt" }, { code: "56", nom: "Djanet" }, { code: "57", nom: "El M'Ghair" },
     { code: "58", nom: "El Meniaa" },
   ]);
 
   const [formData, setFormData] = useState({
     wilaya_depart_id: "16",
     wilaya_arrivee_id: "",
-    wilaya_transit_id: "",
+    wilayas_transit: [],
     date_depart: new Date().toISOString().split("T")[0],
     heure_depart: "08:00",
-    livreur_id: "",
+    hub_id: "",
     vehicule_immatriculation: "",
     capacite_max: 100,
     prix_base: 300,
-    prix_par_colis: 10,
+    prix_par_livraison: 10,
     notes: "",
   });
 
-  const [colisDisponibles, setColisDisponibles] = useState([]);
-  const [colisSelectionnes, setColisSelectionnes] = useState([]);
-  const [showColisSearch, setShowColisSearch] = useState(false);
+  const [livraisonsDisponibles, setLivraisonsDisponibles] = useState([]);
+  const [livraisonsSelectionnees, setLivraisonsSelectionnees] = useState([]);
+  const [showLivraisonSearch, setShowLivraisonSearch] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedTransitWilaya, setSelectedTransitWilaya] = useState("");
 
   useEffect(() => {
-    fetchLivreurs();
-    fetchColisDisponibles();
+    fetchHubs();
+    fetchLivraisonsDisponibles();
   }, []);
 
-  // Récupérer les livreurs disponibles
-  const fetchLivreurs = async () => {
+  const fetchHubs = async () => {
     try {
-      setLoadingLivreurs(true);
-      const response = await navetteService.getLivreursDisponibles();
-      
-      // Adapter selon la structure de la réponse
-      let livreursData = [];
-      if (response.data?.data) {
-        livreursData = response.data.data;
-      } else if (response.data) {
-        livreursData = response.data;
-      } else if (Array.isArray(response)) {
-        livreursData = response;
-      }
-      
-      setLivreurs(livreursData);
+      setLoadingHubs(true);
+      const response = await navetteService.getHubsDisponibles();
+      let hubsData = [];
+      if (response.data?.data) hubsData = response.data.data;
+      else if (response.data) hubsData = response.data;
+      else if (Array.isArray(response)) hubsData = response;
+      setHubs(hubsData);
     } catch (error) {
-      console.error("Erreur chargement livreurs:", error);
-      toast.error("Erreur lors du chargement des livreurs");
+      console.error("Erreur chargement hubs:", error);
+      toast.error("Erreur lors du chargement des hubs");
     } finally {
-      setLoadingLivreurs(false);
+      setLoadingHubs(false);
     }
   };
 
-  // Récupérer les colis disponibles - Version robuste
-  const fetchColisDisponibles = async () => {
+  const fetchLivraisonsDisponibles = async () => {
     try {
-      setLoadingColis(true);
+      setLoadingLivraisons(true);
+      const response = await navetteService.getLivraisonsDisponibles();
       
-      // Appel API vers le nouveau endpoint
-      const response = await api.get('/admin/colis', {
-        params: {
-          non_assignes: true,
-          per_page: 100
+      let livraisonsData = [];
+      if (response.data?.data) livraisonsData = response.data.data;
+      else if (response.data) livraisonsData = response.data;
+      else if (Array.isArray(response)) livraisonsData = response;
+
+      const formattedLivraisons = livraisonsData.map(livraison => {
+        // Récupérer le prix de différentes manières possibles
+        let prix = 0;
+        
+        // Chemin 1: via colis.colis_prix
+        if (livraison.colis?.colis_prix) {
+          prix = livraison.colis.colis_prix;
         }
+        // Chemin 2: via demande_livraison.colis.colis_prix
+        else if (livraison.demande_livraison?.colis?.colis_prix) {
+          prix = livraison.demande_livraison.colis.colis_prix;
+        }
+        // Chemin 3: via demande_livraison.prix
+        else if (livraison.demande_livraison?.prix) {
+          prix = livraison.demande_livraison.prix;
+        }
+        // Chemin 4: via prix directement
+        else if (livraison.prix) {
+          prix = livraison.prix;
+        }
+        
+        // Récupérer la référence
+        let reference = '';
+        if (livraison.demande_livraison?.reference) {
+          reference = livraison.demande_livraison.reference;
+        } else if (livraison.reference) {
+          reference = livraison.reference;
+        } else {
+          reference = `LIV-${livraison.id?.substring(0, 8) || '0000'}`;
+        }
+        
+        // Récupérer le client
+        let client = 'Client inconnu';
+        if (livraison.client?.user?.nom) {
+          client = `${livraison.client.user.prenom || ''} ${livraison.client.user.nom}`.trim();
+        } else if (livraison.client?.nom) {
+          client = livraison.client.nom;
+        } else if (livraison.client_nom) {
+          client = livraison.client_nom;
+        }
+        
+        // Récupérer la destination
+        let destination = 'Non spécifiée';
+        if (livraison.demande_livraison?.addresse_delivery) {
+          destination = livraison.demande_livraison.addresse_delivery;
+        } else if (livraison.destination) {
+          destination = livraison.destination;
+        }
+        
+        // Récupérer les wilayas
+        let wilayaDepart = 'Non spécifiée';
+        if (livraison.demande_livraison?.wilaya_depot) {
+          wilayaDepart = livraison.demande_livraison.wilaya_depot;
+        } else if (livraison.wilaya_depart) {
+          wilayaDepart = livraison.wilaya_depart;
+        }
+        
+        let wilayaArrivee = 'Non spécifiée';
+        if (livraison.demande_livraison?.wilaya) {
+          wilayaArrivee = livraison.demande_livraison.wilaya;
+        } else if (livraison.wilaya_arrivee) {
+          wilayaArrivee = livraison.wilaya_arrivee;
+        }
+        
+        // Récupérer le colis
+        let colisLabel = 'N/A';
+        let poids = 0;
+        if (livraison.colis) {
+          colisLabel = livraison.colis.colis_label || 'N/A';
+          poids = livraison.colis.poids || 0;
+        } else if (livraison.demande_livraison?.colis) {
+          colisLabel = livraison.demande_livraison.colis.colis_label || 'N/A';
+          poids = livraison.demande_livraison.colis.poids || 0;
+        }
+        
+        return {
+          id: livraison.id,
+          reference: reference,
+          client: client,
+          destination: destination,
+          wilaya_depart: wilayaDepart,
+          wilaya_arrivee: wilayaArrivee,
+          colis_label: colisLabel,
+          poids: poids,
+          prix: prix,
+        };
       });
 
-      console.log("Réponse API colis:", response.data); // Pour déboguer
-
-      // Extraire les données de la réponse - Gestion de toutes les structures possibles
-      let colisData = [];
-      
-      if (!response.data) {
-        console.error("Réponse API vide");
-        setColisDisponibles([]);
-        return;
-      }
-
-      // Cas 1: Structure avec pagination Laravel { data: { data: [...] } }
-      if (response.data.data?.data && Array.isArray(response.data.data.data)) {
-        colisData = response.data.data.data;
-      }
-      // Cas 2: Structure simple { data: [...] }
-      else if (response.data.data && Array.isArray(response.data.data)) {
-        colisData = response.data.data;
-      }
-      // Cas 3: Réponse directe [...]
-      else if (Array.isArray(response.data)) {
-        colisData = response.data;
-      }
-      // Cas 4: Structure avec success { success: true, data: [...] }
-      else if (response.data.success && response.data.data) {
-        if (Array.isArray(response.data.data)) {
-          colisData = response.data.data;
-        } else if (response.data.data.data && Array.isArray(response.data.data.data)) {
-          colisData = response.data.data.data;
-        }
-      }
-      // Cas 5: Objet avec propriété data qui est un tableau paginé
-      else if (response.data.data && typeof response.data.data === 'object') {
-        if (response.data.data.data && Array.isArray(response.data.data.data)) {
-          colisData = response.data.data.data;
-        }
-      }
-
-      // Vérifier que colisData est bien un tableau
-      if (!Array.isArray(colisData)) {
-        console.error("Les données reçues ne sont pas un tableau:", colisData);
-        
-        // Dernière tentative : chercher un tableau dans l'objet
-        for (let key in response.data) {
-          if (Array.isArray(response.data[key])) {
-            colisData = response.data[key];
-            break;
-          }
-        }
-        
-        // Si toujours pas de tableau, on utilise un tableau vide
-        if (!Array.isArray(colisData)) {
-          setColisDisponibles([]);
-          toast.error("Format de données invalide pour les colis");
-          return;
-        }
-      }
-
-      // Transformer les données
-      const formattedColis = colisData.map(colis => {
-        // Gérer les différents formats de données
-        return {
-          id: colis.id || colis.uuid || '',
-          label: colis.colis_label || colis.label || colis.reference || `COLIS-${(colis.id || '').substring(0, 8) || '0000'}`,
-          destination: colis.wilaya_destination_nom || colis.destination || colis.wilaya_arrivee_nom || "Non spécifiée",
-          wilaya_destination_id: colis.wilaya_destination_id || colis.wilaya_arrivee_id,
-          poids: parseFloat(colis.poids) || 0,
-          prix: parseFloat(colis.colis_prix || colis.prix) || 0,
-          statut: colis.statut || colis.status
-        };
-      }).filter(colis => colis.id); // Enlever les entrées sans ID
-
-      console.log("Colis formatés:", formattedColis);
-      setColisDisponibles(formattedColis);
-      
+      setLivraisonsDisponibles(formattedLivraisons);
     } catch (error) {
-      console.error("Erreur chargement colis:", error);
-      toast.error("Impossible de charger les colis disponibles");
-      setColisDisponibles([]);
+      console.error("Erreur chargement livraisons:", error);
+      toast.error("Impossible de charger les livraisons disponibles");
+      setLivraisonsDisponibles([]);
     } finally {
-      setLoadingColis(false);
+      setLoadingLivraisons(false);
     }
   };
 
@@ -239,51 +208,68 @@ const NavetteCreate = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const addTransitWilaya = () => {
+    if (!selectedTransitWilaya) {
+      toast.error("Veuillez sélectionner une wilaya");
+      return;
+    }
+    if (formData.wilayas_transit.includes(selectedTransitWilaya)) {
+      toast.error("Cette wilaya est déjà dans la liste");
+      return;
+    }
+    setFormData(prev => ({
+      ...prev,
+      wilayas_transit: [...prev.wilayas_transit, selectedTransitWilaya]
+    }));
+    setSelectedTransitWilaya("");
+  };
+
+  const removeTransitWilaya = (code) => {
+    setFormData(prev => ({
+      ...prev,
+      wilayas_transit: prev.wilayas_transit.filter(c => c !== code)
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validation
     if (!formData.wilaya_arrivee_id) {
       toast.error("Veuillez sélectionner une wilaya d'arrivée");
       return;
     }
 
-    if (colisSelectionnes.length === 0) {
-      toast.error("Veuillez sélectionner au moins un colis");
+    if (livraisonsSelectionnees.length === 0) {
+      toast.error("Veuillez sélectionner au moins une livraison");
       return;
     }
 
-    if (colisSelectionnes.length > formData.capacite_max) {
-      toast.error(`La capacité maximale est de ${formData.capacite_max} colis`);
+    if (livraisonsSelectionnees.length > formData.capacite_max) {
+      toast.error(`La capacité maximale est de ${formData.capacite_max} livraisons`);
       return;
     }
 
     try {
       setLoading(true);
 
-      // Préparer les données avec livreur_id
       const dataToSend = {
         wilaya_depart_id: formData.wilaya_depart_id,
         wilaya_arrivee_id: formData.wilaya_arrivee_id,
-        wilaya_transit_id: formData.wilaya_transit_id || null,
+        wilayas_transit: formData.wilayas_transit,
         date_depart: formData.date_depart,
         heure_depart: formData.heure_depart,
-        livreur_id: formData.livreur_id || null,
+        hub_id: formData.hub_id || null,
         vehicule_immatriculation: formData.vehicule_immatriculation || null,
         capacite_max: parseInt(formData.capacite_max),
         prix_base: parseFloat(formData.prix_base),
-        prix_par_colis: parseFloat(formData.prix_par_colis),
+        prix_par_livraison: parseFloat(formData.prix_par_livraison),
         notes: formData.notes || null,
-        colis_ids: colisSelectionnes.map((c) => c.id),
+        livraison_ids: livraisonsSelectionnees.map((l) => l.id),
       };
 
-      console.log("Données envoyées:", dataToSend);
-
       const response = await navetteService.createNavette(dataToSend);
-
       toast.success("Navette créée avec succès");
       
-      // Rediriger vers la page de détail
       const navetteId = response.data?.id || response?.id;
       if (navetteId) {
         navigate(`/navettes/${navetteId}`);
@@ -292,55 +278,100 @@ const NavetteCreate = () => {
       }
     } catch (error) {
       console.error("Erreur création navette:", error);
-      
-      // Afficher les erreurs de validation détaillées
       if (error.response?.data?.errors) {
         const errors = error.response.data.errors;
         Object.keys(errors).forEach(key => {
           toast.error(`${key}: ${errors[key].join(', ')}`);
         });
       } else {
-        toast.error(
-          error.response?.data?.message || "Erreur lors de la création",
-        );
+        toast.error(error.response?.data?.message || "Erreur lors de la création");
       }
     } finally {
       setLoading(false);
     }
   };
 
-  const addColis = (colis) => {
-    if (!colisSelectionnes.find((c) => c.id === colis.id)) {
-      // Vérifier la capacité
-      if (colisSelectionnes.length >= formData.capacite_max) {
-        toast.error(`Capacité maximale (${formData.capacite_max} colis) atteinte`);
+  const addLivraison = (livraison) => {
+    if (!livraisonsSelectionnees.find((l) => l.id === livraison.id)) {
+      if (livraisonsSelectionnees.length >= formData.capacite_max) {
+        toast.error(`Capacité maximale (${formData.capacite_max} livraisons) atteinte`);
         return;
       }
-      setColisSelectionnes([...colisSelectionnes, colis]);
-      toast.success(`Colis ${colis.label} ajouté`);
+      
+      setLivraisonsSelectionnees([...livraisonsSelectionnees, livraison]);
+      
+      // Mettre à jour la wilaya de départ si elle n'est pas encore définie
+      if (!formData.wilaya_depart_id && livraison.wilaya_depart && livraison.wilaya_depart !== 'Non spécifiée') {
+        setFormData(prev => ({
+          ...prev,
+          wilaya_depart_id: livraison.wilaya_depart
+        }));
+        toast.info(`Wilaya de départ définie sur ${getWilayaName(livraison.wilaya_depart)}`);
+      }
+      
+      // Mettre à jour la wilaya d'arrivée si elle n'est pas encore définie
+      if (!formData.wilaya_arrivee_id && livraison.wilaya_arrivee && livraison.wilaya_arrivee !== 'Non spécifiée') {
+        setFormData(prev => ({
+          ...prev,
+          wilaya_arrivee_id: livraison.wilaya_arrivee
+        }));
+        toast.info(`Wilaya d'arrivée définie sur ${getWilayaName(livraison.wilaya_arrivee)}`);
+      }
+      
+      toast.success(`Livraison ${livraison.reference} ajoutée`);
     }
-    setShowColisSearch(false);
+    setShowLivraisonSearch(false);
     setSearchTerm("");
   };
 
-  const removeColis = (colisId) => {
-    const colis = colisSelectionnes.find(c => c.id === colisId);
-    setColisSelectionnes(colisSelectionnes.filter((c) => c.id !== colisId));
-    toast.success(`Colis ${colis?.label} retiré`);
+  const removeLivraison = (livraisonId) => {
+    const livraison = livraisonsSelectionnees.find(l => l.id === livraisonId);
+    setLivraisonsSelectionnees(livraisonsSelectionnees.filter((l) => l.id !== livraisonId));
+    toast.success(`Livraison ${livraison?.reference} retirée`);
   };
 
-  const filteredColis = colisDisponibles.filter(
-    (colis) =>
-      colis.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (colis.destination && colis.destination.toLowerCase().includes(searchTerm.toLowerCase())),
+  const filteredLivraisons = livraisonsDisponibles.filter(
+    (livraison) =>
+      livraison.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      livraison.client.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (livraison.destination && livraison.destination.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // Calcul du total estimé
-  const totalEstime = formData.prix_base + (colisSelectionnes.length * formData.prix_par_colis);
+  const totalEstime = formData.prix_base + (livraisonsSelectionnees.length * formData.prix_par_livraison);
+
+  const getWilayaName = (code) => {
+    const wilaya = wilayas.find(w => w.code === code);
+    return wilaya ? `${wilaya.code} - ${wilaya.nom}` : code;
+  };
+
+  // Calculer le nombre d'acteurs et la part équitable
+  const getNbActeurs = () => {
+    const acteurs = new Set();
+    
+    if (formData.wilaya_depart_id) {
+      acteurs.add(`gestionnaire_${formData.wilaya_depart_id}`);
+    }
+    
+    formData.wilayas_transit.forEach(code => {
+      acteurs.add(`gestionnaire_${code}`);
+    });
+    
+    if (formData.wilaya_arrivee_id && formData.wilaya_arrivee_id !== formData.wilaya_depart_id) {
+      acteurs.add(`gestionnaire_${formData.wilaya_arrivee_id}`);
+    }
+    
+    if (formData.hub_id) {
+      acteurs.add(`hub_${formData.hub_id}`);
+    }
+    
+    return acteurs.size;
+  };
+
+  const nbActeurs = getNbActeurs();
+  const partEquitable = nbActeurs > 0 ? (100 / nbActeurs).toFixed(2) : 0;
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* En-tête */}
       <div className="mb-6">
         <button
           onClick={() => navigate("/navettes")}
@@ -348,18 +379,14 @@ const NavetteCreate = () => {
         >
           <FaArrowLeft /> Retour aux navettes
         </button>
-
-        <h1 className="text-2xl font-bold text-gray-900">
-          Créer une nouvelle navette
-        </h1>
-        <p className="text-gray-600">Planifiez un nouveau trajet de navette</p>
+        <h1 className="text-2xl font-bold text-gray-900">Créer une nouvelle navette</h1>
+        <p className="text-gray-600">Planifiez un nouveau trajet en regroupant des livraisons</p>
       </div>
 
       <form onSubmit={handleSubmit}>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Colonne principale - Infos navette */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Informations trajet */}
+            {/* Trajet */}
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <FaMapMarkerAlt className="text-primary-600" />
@@ -406,23 +433,54 @@ const NavetteCreate = () => {
                   </select>
                 </div>
 
-                <div>
+                <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Wilaya de transit (optionnel)
+                    Wilayas de transit (optionnel, multiples)
                   </label>
-                  <select
-                    name="wilaya_transit_id"
-                    value={formData.wilaya_transit_id}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
-                  >
-                    <option value="">Aucun transit</option>
-                    {wilayas.map((wilaya) => (
-                      <option key={wilaya.code} value={wilaya.code}>
-                        {wilaya.code} - {wilaya.nom}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedTransitWilaya}
+                      onChange={(e) => setSelectedTransitWilaya(e.target.value)}
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+                    >
+                      <option value="">Sélectionner une wilaya</option>
+                      {wilayas.map((wilaya) => (
+                        <option key={wilaya.code} value={wilaya.code}>
+                          {wilaya.code} - {wilaya.nom}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={addTransitWilaya}
+                      className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition"
+                    >
+                      <FaPlusCircle className="inline mr-1" /> Ajouter
+                    </button>
+                  </div>
+                  
+                  {formData.wilayas_transit.length > 0 && (
+                    <div className="mt-3">
+                      <div className="flex flex-wrap gap-2">
+                        {formData.wilayas_transit.map((code) => (
+                          <span
+                            key={code}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-800 rounded-full text-sm"
+                          >
+                            <FaMapMarkerAlt className="w-3 h-3" />
+                            {getWilayaName(code)}
+                            <button
+                              type="button"
+                              onClick={() => removeTransitWilaya(code)}
+                              className="ml-1 hover:text-blue-600 focus:outline-none"
+                            >
+                              <FaMinusCircle className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -472,35 +530,34 @@ const NavetteCreate = () => {
               </div>
             </div>
 
-            {/* Livreur et véhicule */}
+            {/* Hub et véhicule */}
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <FaUser className="text-primary-600" />
-                Livreur et véhicule
+                <FaBuilding className="text-primary-600" />
+                Hub et véhicule
               </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Livreur
+                    Hub
                   </label>
                   <select
-                    name="livreur_id"
-                    value={formData.livreur_id}
+                    name="hub_id"
+                    value={formData.hub_id}
                     onChange={handleChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
-                    disabled={loadingLivreurs}
+                    disabled={loadingHubs}
                   >
-                    <option value="">Sélectionner un livreur</option>
-                    {livreurs.map((livreur) => (
-                      <option key={livreur.id} value={livreur.id}>
-                        {livreur.nom_complet || (livreur.user && `${livreur.user.prenom || ''} ${livreur.user.nom || ''}`) || 'Livreur'}
-                        {livreur.type && ` (${livreur.type})`}
+                    <option value="">Sélectionner un hub</option>
+                    {hubs.map((hub) => (
+                      <option key={hub.id} value={hub.id}>
+                        {hub.nom}
                       </option>
                     ))}
                   </select>
-                  {loadingLivreurs && (
-                    <p className="text-sm text-gray-500 mt-1">Chargement des livreurs...</p>
+                  {loadingHubs && (
+                    <p className="text-sm text-gray-500 mt-1">Chargement des hubs...</p>
                   )}
                 </div>
 
@@ -530,7 +587,7 @@ const NavetteCreate = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Capacité max (colis)
+                    Capacité max (livraisons)
                   </label>
                   <input
                     type="number"
@@ -562,12 +619,12 @@ const NavetteCreate = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Prix par colis (DA)
+                    Prix par livraison (DA)
                   </label>
                   <input
                     type="number"
-                    name="prix_par_colis"
-                    value={formData.prix_par_colis}
+                    name="prix_par_livraison"
+                    value={formData.prix_par_livraison}
                     onChange={handleChange}
                     min="0"
                     step="1"
@@ -583,10 +640,96 @@ const NavetteCreate = () => {
                   {comptabiliteService.formatMontant(totalEstime)}
                 </p>
                 <p className="text-xs text-blue-600 mt-1">
-                  {colisSelectionnes.length} colis sélectionnés sur {formData.capacite_max} maximum
+                  {livraisonsSelectionnees.length} livraison(s) sélectionnée(s) sur {formData.capacite_max} maximum
                 </p>
               </div>
             </div>
+
+            {/* Répartition équitable */}
+            {nbActeurs > 0 && (
+              <div className="bg-white rounded-lg shadow p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <FaUsers className="text-primary-600" />
+                  Répartition équitable des gains
+                </h2>
+                
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4">
+                  <p className="text-sm text-blue-700 mb-3 flex items-center gap-2">
+                    <FaUserTie className="text-blue-600" />
+                    Les gains des livraisons seront répartis équitablement entre :
+                  </p>
+                  
+                  <div className="space-y-2">
+                    {formData.wilaya_depart_id && (
+                      <div className="flex items-center justify-between py-2 border-b border-blue-100">
+                        <span className="text-sm flex items-center gap-2">
+                          <FaMapMarkerAlt className="text-blue-500" />
+                          Gestionnaire wilaya départ ({formData.wilaya_depart_id})
+                        </span>
+                        <span className="text-sm font-semibold text-blue-600">
+                          {partEquitable}%
+                        </span>
+                      </div>
+                    )}
+                    
+                    {formData.wilayas_transit.map((code) => (
+                      <div key={code} className="flex items-center justify-between py-2 border-b border-blue-100">
+                        <span className="text-sm flex items-center gap-2">
+                          <FaMapMarkerAlt className="text-purple-500" />
+                          Gestionnaire wilaya transit ({code})
+                        </span>
+                        <span className="text-sm font-semibold text-blue-600">
+                          {partEquitable}%
+                        </span>
+                      </div>
+                    ))}
+                    
+                    {formData.wilaya_arrivee_id && formData.wilaya_arrivee_id !== formData.wilaya_depart_id && (
+                      <div className="flex items-center justify-between py-2 border-b border-blue-100">
+                        <span className="text-sm flex items-center gap-2">
+                          <FaMapMarkerAlt className="text-green-500" />
+                          Gestionnaire wilaya arrivée ({formData.wilaya_arrivee_id})
+                        </span>
+                        <span className="text-sm font-semibold text-blue-600">
+                          {partEquitable}%
+                        </span>
+                      </div>
+                    )}
+                    
+                    {formData.hub_id && (
+                      <div className="flex items-center justify-between py-2 border-b border-blue-100">
+                        <span className="text-sm flex items-center gap-2">
+                          <FaBuilding className="text-orange-500" />
+                          Hub ({hubs.find(h => h.id === formData.hub_id)?.nom || 'Hub'})
+                        </span>
+                        <span className="text-sm font-semibold text-blue-600">
+                          {partEquitable}%
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="mt-4 pt-3 border-t border-blue-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-gray-700">Nombre d'acteurs</span>
+                      <span className="text-sm font-bold text-primary-600 bg-primary-100 px-3 py-1 rounded-full">
+                        {nbActeurs} acteur(s)
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-sm font-semibold text-gray-700">Part par acteur</span>
+                      <span className="text-sm font-bold text-green-600 bg-green-100 px-3 py-1 rounded-full">
+                        {partEquitable}%
+                      </span>
+                    </div>
+                    <p className="text-xs text-blue-500 mt-3">
+                      * La répartition sera calculée automatiquement à la création. 
+                      Chaque acteur recevra {partEquitable}% du prix de chaque livraison.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Notes */}
             <div className="bg-white rounded-lg shadow p-6">
@@ -604,39 +747,50 @@ const NavetteCreate = () => {
             </div>
           </div>
 
-          {/* Colonne latérale - Sélection des colis */}
+          {/* Colonne latérale - Sélection des livraisons */}
           <div className="space-y-6">
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <FaBoxes className="text-primary-600" />
-                Colis sélectionnés
+                Livraisons sélectionnées
                 <span className="ml-auto bg-primary-100 text-primary-800 px-2 py-1 rounded-full text-xs">
-                  {colisSelectionnes.length}/{formData.capacite_max}
+                  {livraisonsSelectionnees.length}/{formData.capacite_max}
                 </span>
               </h2>
 
-              {colisSelectionnes.length > 0 ? (
+              {livraisonsSelectionnees.length > 0 ? (
                 <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {colisSelectionnes.map((colis) => (
+                  {livraisonsSelectionnees.map((livraison) => (
                     <div
-                      key={colis.id}
+                      key={livraison.id}
                       className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                     >
                       <div>
                         <p className="font-medium text-gray-900">
-                          {colis.label}
+                          {livraison.reference}
                         </p>
                         <p className="text-sm text-gray-600">
-                          {colis.destination} • {colis.poids} kg
+                          {livraison.client}
+                        </p>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
+                            Départ: {getWilayaName(livraison.wilaya_depart)}
+                          </span>
+                          <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">
+                            Arrivée: {getWilayaName(livraison.wilaya_arrivee)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {livraison.colis_label} • {livraison.poids} kg
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-semibold text-green-600">
-                          {comptabiliteService.formatMontant(colis.prix)}
+                          {comptabiliteService.formatMontant(livraison.prix)}
                         </span>
                         <button
                           type="button"
-                          onClick={() => removeColis(colis.id)}
+                          onClick={() => removeLivraison(livraison.id)}
                           className="text-red-600 hover:text-red-800"
                         >
                           <FaTrash />
@@ -648,29 +802,28 @@ const NavetteCreate = () => {
               ) : (
                 <div className="text-center py-8 text-gray-500">
                   <FaBoxes className="mx-auto text-4xl mb-2 text-gray-300" />
-                  <p>Aucun colis sélectionné</p>
+                  <p>Aucune livraison sélectionnée</p>
                 </div>
               )}
 
               <button
                 type="button"
-                onClick={() => setShowColisSearch(true)}
-                disabled={colisSelectionnes.length >= formData.capacite_max}
+                onClick={() => setShowLivraisonSearch(true)}
+                disabled={livraisonsSelectionnees.length >= formData.capacite_max}
                 className={`mt-4 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition ${
-                  colisSelectionnes.length >= formData.capacite_max
+                  livraisonsSelectionnees.length >= formData.capacite_max
                     ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                     : "bg-primary-600 text-white hover:bg-primary-700"
                 }`}
               >
-                <FaPlus /> Ajouter des colis
+                <FaPlus /> Ajouter des livraisons
               </button>
             </div>
 
-            {/* Bouton de création */}
             <button
               type="submit"
-              disabled={loading || colisSelectionnes.length === 0}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading || livraisonsSelectionnees.length === 0}
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50"
             >
               {loading ? (
                 <>
@@ -687,88 +840,97 @@ const NavetteCreate = () => {
         </div>
       </form>
 
-      {/* Modal de recherche de colis */}
-      {showColisSearch && (
+      {/* Modal de recherche de livraisons */}
+      {showLivraisonSearch && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200">
               <h2 className="text-xl font-bold text-gray-900">
-                Ajouter des colis
+                Ajouter des livraisons
               </h2>
               <p className="text-gray-600">
-                Sélectionnez les colis à ajouter à la navette
+                Sélectionnez les livraisons à ajouter à la navette
               </p>
             </div>
 
             <div className="p-6">
-              {/* Barre de recherche */}
               <div className="relative mb-4">
                 <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Rechercher par référence ou destination..."
+                  placeholder="Rechercher par référence, client ou destination..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>
 
-              {/* Indicateur de chargement */}
-              {loadingColis && (
+              {loadingLivraisons ? (
                 <div className="text-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-                  <p className="text-gray-500 mt-2">Chargement des colis...</p>
+                  <p className="text-gray-500 mt-2">Chargement des livraisons...</p>
                 </div>
-              )}
-
-              {/* Liste des colis */}
-              {!loadingColis && (
+              ) : (
                 <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {filteredColis.length === 0 ? (
+                  {filteredLivraisons.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       {searchTerm ? (
                         <>
                           <FaSearch className="mx-auto text-4xl mb-2 text-gray-300" />
-                          <p>Aucun colis trouvé pour "{searchTerm}"</p>
+                          <p>Aucune livraison trouvée pour "{searchTerm}"</p>
                         </>
                       ) : (
                         <>
                           <FaBoxes className="mx-auto text-4xl mb-2 text-gray-300" />
-                          <p>Aucun colis disponible</p>
+                          <p>Aucune livraison disponible</p>
                         </>
                       )}
                     </div>
                   ) : (
-                    filteredColis.map((colis) => (
+                    filteredLivraisons.map((livraison) => (
                       <div
-                        key={colis.id}
+                        key={livraison.id}
                         className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
                       >
                         <div>
                           <p className="font-medium text-gray-900">
-                            {colis.label}
+                            {livraison.reference}
                           </p>
                           <p className="text-sm text-gray-600">
-                            {colis.destination} • {colis.poids} kg
+                            {livraison.client}
+                          </p>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
+                              Départ: {getWilayaName(livraison.wilaya_depart)}
+                            </span>
+                            <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">
+                              Arrivée: {getWilayaName(livraison.wilaya_arrivee)}
+                            </span>
+                            <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
+                              {livraison.poids} kg
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {livraison.colis_label}
                           </p>
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-sm font-semibold text-green-600">
-                            {comptabiliteService.formatMontant(colis.prix)}
+                            {comptabiliteService.formatMontant(livraison.prix)}
                           </span>
                           <button
-                            onClick={() => addColis(colis)}
-                            disabled={colisSelectionnes.find(
-                              (c) => c.id === colis.id,
+                            onClick={() => addLivraison(livraison)}
+                            disabled={livraisonsSelectionnees.find(
+                              (l) => l.id === livraison.id,
                             )}
                             className={`px-3 py-1 rounded-lg text-sm ${
-                              colisSelectionnes.find((c) => c.id === colis.id)
+                              livraisonsSelectionnees.find((l) => l.id === livraison.id)
                                 ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                                 : "bg-primary-600 text-white hover:bg-primary-700"
                             }`}
                           >
-                            {colisSelectionnes.find((c) => c.id === colis.id)
-                              ? "Ajouté"
+                            {livraisonsSelectionnees.find((l) => l.id === livraison.id)
+                              ? "Ajoutée"
                               : "Ajouter"}
                           </button>
                         </div>
@@ -781,7 +943,7 @@ const NavetteCreate = () => {
 
             <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-end">
               <button
-                onClick={() => setShowColisSearch(false)}
+                onClick={() => setShowLivraisonSearch(false)}
                 className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition"
               >
                 Fermer

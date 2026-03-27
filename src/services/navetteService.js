@@ -14,6 +14,12 @@ const navetteService = {
         return response.data;
     },
 
+    // Récupérer les livraisons d'une navette
+    getLivraisonsByNavetteId: async (id) => {
+        const response = await api.get(`/admin/navettes/${id}/livraisons`);
+        return response.data;
+    },
+
     // Créer une nouvelle navette
     createNavette: async (navetteData) => {
         const response = await api.post('/admin/navettes', navetteData);
@@ -50,16 +56,18 @@ const navetteService = {
         return response.data;
     },
 
-    // Ajouter des colis à une navette
-    ajouterColis: async (id, colisIds) => {
-        const response = await api.post(`/admin/navettes/${id}/colis`, { colis_ids: colisIds });
+    // Ajouter des livraisons à une navette
+    ajouterLivraisons: async (id, livraisonIds) => {
+        const response = await api.post(`/admin/navettes/${id}/livraisons`, { 
+            livraison_ids: livraisonIds 
+        });
         return response.data;
     },
 
-    // Retirer des colis d'une navette
-    retirerColis: async (id, colisIds) => {
-        const response = await api.delete(`/admin/navettes/${id}/colis`, {
-            data: { colis_ids: colisIds }
+    // Retirer des livraisons d'une navette
+    retirerLivraisons: async (id, livraisonIds) => {
+        const response = await api.delete(`/admin/navettes/${id}/livraisons`, {
+            data: { livraison_ids: livraisonIds }
         });
         return response.data;
     },
@@ -89,7 +97,6 @@ const navetteService = {
             responseType: 'blob'
         });
         
-        // Créer un lien de téléchargement
         const url = window.URL.createObjectURL(new Blob([response.data]));
         const link = document.createElement('a');
         link.href = url;
@@ -99,26 +106,30 @@ const navetteService = {
         link.remove();
     },
 
-    // Obtenir la liste des livreurs disponibles (chauffeurs)
-    getLivreursDisponibles: async () => {
+    // Obtenir la liste des hubs disponibles
+    getHubsDisponibles: async () => {
         try {
-            // Récupérer tous les livreurs actifs
-            const response = await api.get('/livreurs', {
+            const response = await api.get('/admin/hubs');
+            return response.data;
+        } catch (error) {
+            console.error("Erreur getHubsDisponibles:", error);
+            throw error;
+        }
+    },
+
+    // Obtenir la liste des livraisons disponibles (non assignées)
+    getLivraisonsDisponibles: async (params = {}) => {
+        try {
+            const response = await api.get('/admin/livraisons', {
                 params: {
-                    desactiver: false
+                    status: 'en_attente',
+                    non_assignees: true,
+                    ...params
                 }
             });
-            
-            // Filtrer pour ne garder que ceux qui peuvent être chauffeurs
-            // (type 'distributeur' ou 'ramasseur' selon votre logique métier)
-            const livreurs = response.data?.data || response.data || [];
-            
-            // Si vous voulez filtrer par type spécifique
-            // const chauffeurs = livreurs.filter(l => l.type === 'distributeur' || l.type === 'ramasseur');
-            
-            return { data: livreurs };
+            return response.data;
         } catch (error) {
-            console.error("Erreur getLivreursDisponibles:", error);
+            console.error("Erreur getLivraisonsDisponibles:", error);
             throw error;
         }
     }
