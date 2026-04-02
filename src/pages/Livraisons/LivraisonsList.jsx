@@ -13,13 +13,11 @@ import {
   FaExclamationTriangle,
   FaFileExcel,
   FaFilePdf,
-  FaDownload,
   FaSync,
   FaFileAlt,
   FaCalendarAlt,
   FaFilter,
   FaCalendarDay,
-  FaInfoCircle,
 } from "react-icons/fa";
 
 const LivraisonsList = () => {
@@ -45,6 +43,7 @@ const LivraisonsList = () => {
   const [statusFilter, setStatusFilter] = useState("");
   const [startDateFilter, setStartDateFilter] = useState("");
   const [endDateFilter, setEndDateFilter] = useState("");
+  const [monthFilter, setMonthFilter] = useState("");
 
   const navigate = useNavigate();
 
@@ -52,37 +51,16 @@ const LivraisonsList = () => {
     fetchLivraisons();
   }, []);
 
-  // Filtrer les livraisons quand les filtres changent
   useEffect(() => {
     if (livraisons.length > 0) {
       applyFilters();
     }
-  }, [searchTerm, statusFilter, startDateFilter, endDateFilter, livraisons]);
+  }, [searchTerm, statusFilter, startDateFilter, endDateFilter, monthFilter, livraisons]);
 
   const fetchLivraisons = async () => {
     try {
       setLoading(true);
       const response = await livraisonService.getAllLivraisons();
-      console.log("Données reçues complètes:", response);
-
-      // Debug: Vérifier la structure des téléphones
-      if (response && response.length > 0) {
-        const firstLivraison = response[0];
-        console.log("DEBUG Structure téléphones:", {
-          client: firstLivraison.client,
-          "client.telephone": firstLivraison.client?.telephone,
-          destinataire: firstLivraison.destinataire,
-          "destinataire.telephone": firstLivraison.destinataire?.telephone,
-          demande_livraison: firstLivraison.demande_livraison,
-          "demande_livraison.destinataire":
-            firstLivraison.demande_livraison?.destinataire,
-          "demande_livraison.destinataire.user":
-            firstLivraison.demande_livraison?.destinataire?.user,
-          "demande_livraison.destinataire.user.telephone":
-            firstLivraison.demande_livraison?.destinataire?.user?.telephone,
-        });
-      }
-
       setLivraisons(response || []);
       calculateStats(response || []);
     } catch (error) {
@@ -93,9 +71,60 @@ const LivraisonsList = () => {
     }
   };
 
+  // ==================== FONCTIONS DE GESTION DES DATES (CORRIGÉES) ====================
+
+  // Fonction pour obtenir la date d'une livraison (sans manipulation de fuseau horaire)
+  const getLivraisonDate = (livraison) => {
+    let date = null;
+    
+    if (livraison.created_at) {
+      date = new Date(livraison.created_at);
+    } else if (livraison.demande_livraison?.created_at) {
+      date = new Date(livraison.demande_livraison.created_at);
+    } else if (livraison.date_livraison) {
+      date = new Date(livraison.date_livraison);
+    } else {
+      return new Date();
+    }
+    
+    return date;
+  };
+
+  // Fonction pour créer une date locale à partir d'une chaîne YYYY-MM-DD
+  const createLocalDate = (dateString) => {
+    if (!dateString) return null;
+    const [year, month, day] = dateString.split('-');
+    // Créer une date en utilisant le fuseau horaire local
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+  };
+
+  // Fonction pour obtenir la date de début d'un mois
+  const getMonthStart = (year, month) => {
+    return new Date(year, month, 1, 0, 0, 0, 0);
+  };
+
+  // Fonction pour obtenir la date de fin d'un mois
+  const getMonthEnd = (year, month) => {
+    return new Date(year, month + 1, 0, 23, 59, 59, 999);
+  };
+
+  // Fonction pour obtenir le nom français du mois
+  const getFrenchMonthName = (month) => {
+    const months = [
+      'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+      'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'
+    ];
+    return months[month];
+  };
+
+  // Fonction pour formater la date pour la recherche
+  const formatDateForSearch = (livraison) => {
+    const date = getLivraisonDate(livraison);
+    return date.toLocaleDateString('fr-FR');
+  };
+
   // Fonction pour obtenir le nom complet du client
   const getClientFullName = (livraison) => {
-    // 1. Dans client (user object)
     if (livraison.client) {
       const nom = livraison.client.nom || "";
       const prenom = livraison.client.prenom || "";
@@ -103,7 +132,6 @@ const LivraisonsList = () => {
       if (fullName) return fullName;
     }
 
-    // 2. Dans demande_livraison.client.user
     if (livraison.demande_livraison?.client?.user) {
       const nom = livraison.demande_livraison.client.user.nom || "";
       const prenom = livraison.demande_livraison.client.user.prenom || "";
@@ -111,7 +139,6 @@ const LivraisonsList = () => {
       if (fullName) return fullName;
     }
 
-    // 3. Dans demande_livraison.client (champ texte)
     if (livraison.demande_livraison?.client) {
       if (typeof livraison.demande_livraison.client === "string") {
         return livraison.demande_livraison.client;
@@ -121,27 +148,20 @@ const LivraisonsList = () => {
     return "Non spécifié";
   };
 
-  // Fonction pour obtenir le téléphone du client - CORRIGÉ SELON LE CONTROLEUR
+  // Fonction pour obtenir le téléphone du client
   const getClientTelephone = (livraison) => {
-    // 1. Vérifier dans client.telephone (direct dans user object)
     if (livraison.client?.telephone) {
       const phone = livraison.client.telephone.toString().trim();
       if (phone && phone !== "") return phone;
     }
 
-    // 2. Vérifier dans demande_livraison.client.user.telephone
     if (livraison.demande_livraison?.client?.user?.telephone) {
-      const phone = livraison.demande_livraison.client.user.telephone
-        .toString()
-        .trim();
+      const phone = livraison.demande_livraison.client.user.telephone.toString().trim();
       if (phone && phone !== "") return phone;
     }
 
-    // 3. Vérifier dans demande_livraison.client_telephone (champ direct)
     if (livraison.demande_livraison?.client_telephone) {
-      const phone = livraison.demande_livraison.client_telephone
-        .toString()
-        .trim();
+      const phone = livraison.demande_livraison.client_telephone.toString().trim();
       if (phone && phone !== "") return phone;
     }
 
@@ -150,7 +170,6 @@ const LivraisonsList = () => {
 
   // Fonction pour obtenir le nom du destinataire
   const getDestinataireName = (livraison) => {
-    // 1. Vérifier dans destinataire (user object)
     if (livraison.destinataire) {
       const nom = livraison.destinataire.nom || "";
       const prenom = livraison.destinataire.prenom || "";
@@ -158,7 +177,6 @@ const LivraisonsList = () => {
       if (fullName) return fullName;
     }
 
-    // 2. Vérifier dans demande_livraison.destinataire.user
     if (livraison.demande_livraison?.destinataire?.user) {
       const nom = livraison.demande_livraison.destinataire.user.nom || "";
       const prenom = livraison.demande_livraison.destinataire.user.prenom || "";
@@ -166,7 +184,6 @@ const LivraisonsList = () => {
       if (fullName) return fullName;
     }
 
-    // 3. Fallback à demande_livraison.destinataire (champ texte)
     if (livraison.demande_livraison?.destinataire) {
       if (typeof livraison.demande_livraison.destinataire === "string") {
         return livraison.demande_livraison.destinataire;
@@ -176,159 +193,24 @@ const LivraisonsList = () => {
     return "Non spécifié";
   };
 
-  // Fonction pour obtenir le téléphone du destinataire - CORRIGÉ SELON LE CONTROLEUR
+  // Fonction pour obtenir le téléphone du destinataire
   const getDestinataireTelephone = (livraison) => {
-    // 1. Vérifier dans destinataire.telephone (direct dans user object)
     if (livraison.destinataire?.telephone) {
       const phone = livraison.destinataire.telephone.toString().trim();
       if (phone && phone !== "") return phone;
     }
 
-    // 2. Vérifier dans demande_livraison.destinataire.user.telephone
     if (livraison.demande_livraison?.destinataire?.user?.telephone) {
-      const phone = livraison.demande_livraison.destinataire.user.telephone
-        .toString()
-        .trim();
+      const phone = livraison.demande_livraison.destinataire.user.telephone.toString().trim();
       if (phone && phone !== "") return phone;
     }
 
-    // 3. Vérifier dans demande_livraison.telephone_destinataire
     if (livraison.demande_livraison?.telephone_destinataire) {
-      const phone = livraison.demande_livraison.telephone_destinataire
-        .toString()
-        .trim();
-      if (phone && phone !== "") return phone;
-    }
-
-    // 4. Vérifier dans demande_livraison.destinataire_telephone
-    if (livraison.demande_livraison?.destinataire_telephone) {
-      const phone = livraison.demande_livraison.destinataire_telephone
-        .toString()
-        .trim();
+      const phone = livraison.demande_livraison.telephone_destinataire.toString().trim();
       if (phone && phone !== "") return phone;
     }
 
     return "Non spécifié";
-  };
-
-  const calculateStats = (data) => {
-    const stats = {
-      total: data.length,
-      en_attente: data.filter((l) => l.status === "en_attente").length,
-      prise_en_charge_ramassage: data.filter(
-        (l) => l.status === "prise_en_charge_ramassage",
-      ).length,
-      ramasse: data.filter((l) => l.status === "ramasse").length,
-      en_transit: data.filter((l) => l.status === "en_transit").length,
-      prise_en_charge_livraison: data.filter(
-        (l) => l.status === "prise_en_charge_livraison",
-      ).length,
-      livre: data.filter((l) => l.status === "livre").length,
-      annule: data.filter((l) => l.status === "annule").length,
-      en_cours: data.filter(
-        (l) => !["en_attente", "livre", "annule"].includes(l.status),
-      ).length,
-    };
-    setStats(stats);
-  };
-
-  // Fonction pour rechercher dans toutes les propriétés d'un objet
-  const searchInObject = (obj, searchTerm) => {
-    if (!searchTerm) return false;
-
-    const term = searchTerm.toLowerCase();
-
-    const searchRecursive = (currentObj) => {
-      if (typeof currentObj === "string") {
-        return currentObj.toLowerCase().includes(term);
-      }
-
-      if (typeof currentObj === "number") {
-        return currentObj.toString().includes(term);
-      }
-
-      if (Array.isArray(currentObj)) {
-        return currentObj.some((item) => searchRecursive(item));
-      }
-
-      if (currentObj && typeof currentObj === "object") {
-        return Object.values(currentObj).some((value) =>
-          searchRecursive(value),
-        );
-      }
-
-      return false;
-    };
-
-    return searchRecursive(obj);
-  };
-
-  // Fonction principale pour appliquer les filtres
-  const applyFilters = () => {
-    try {
-      let filtered = [...livraisons];
-
-      // 1. Filtrer par statut si spécifié
-      if (statusFilter) {
-        filtered = filtered.filter(
-          (livraison) => livraison.status === statusFilter,
-        );
-      }
-
-      // 3. Filtrer par recherche textuelle si spécifiée
-      if (searchTerm.trim()) {
-        const searchLower = searchTerm.toLowerCase().trim();
-
-        filtered = filtered.filter((livraison) => {
-          // Vérifier directement avec la fonction de recherche récursive
-          if (searchInObject(livraison, searchLower)) {
-            return true;
-          }
-
-          // Recherche spécifique dans les champs principaux
-          const fieldsToCheck = [
-            // ID et code PIN
-            livraison.id,
-            livraison.code_pin,
-
-            // Informations client
-            getClientFullName(livraison),
-            getClientTelephone(livraison),
-
-            // Informations destinataire
-            getDestinataireName(livraison),
-            getDestinataireTelephone(livraison),
-
-            // Informations demande de livraison
-            livraison.demande_livraison?.wilaya,
-            livraison.demande_livraison?.commune,
-            livraison.demande_livraison?.adresse,
-            livraison.demande_livraison?.addresse_depot,
-            livraison.demande_livraison?.addresse_delivery,
-
-            // Informations colis
-            livraison.demande_livraison?.colis?.colis_label,
-            livraison.demande_livraison?.colis?.reference,
-
-            // Statut
-            getStatusFrenchName(livraison.status),
-          ]
-            .filter(Boolean)
-            .map(String); // Convertir en string et filtrer les valeurs falsy
-
-          // Vérifier si le terme de recherche est présent dans un des champs
-          return fieldsToCheck.some((field) =>
-            field.toLowerCase().includes(searchLower),
-          );
-        });
-      }
-
-      setFilteredLivraisons(filtered);
-    } catch (error) {
-      console.error("Erreur lors du filtrage:", error);
-      toast.error("Erreur lors du filtrage");
-      setFilteredLivraisons(livraisons);
-    }
   };
 
   // Fonction pour obtenir le nom français du statut
@@ -342,14 +224,156 @@ const LivraisonsList = () => {
       livre: "livré",
       annule: "annulé",
     };
-
     return statusMap[status] || status;
   };
 
+  // ==================== FONCTIONS DE RECHERCHE ET FILTRAGE ====================
+
+  const searchInObject = (obj, searchTerm) => {
+    if (!searchTerm) return false;
+    const term = searchTerm.toLowerCase();
+
+    const searchRecursive = (currentObj) => {
+      if (typeof currentObj === "string") {
+        return currentObj.toLowerCase().includes(term);
+      }
+      if (typeof currentObj === "number") {
+        return currentObj.toString().includes(term);
+      }
+      if (Array.isArray(currentObj)) {
+        return currentObj.some((item) => searchRecursive(item));
+      }
+      if (currentObj && typeof currentObj === "object") {
+        return Object.values(currentObj).some((value) => searchRecursive(value));
+      }
+      return false;
+    };
+
+    return searchRecursive(obj);
+  };
+
+  // Fonction principale pour appliquer les filtres (VERSION CORRIGÉE)
+  const applyFilters = () => {
+    try {
+      let filtered = [...livraisons];
+
+      // 1. Filtrer par statut
+      if (statusFilter) {
+        filtered = filtered.filter((livraison) => livraison.status === statusFilter);
+      }
+
+      // 2. Filtrer par mois (priorité au filtre mois s'il est actif)
+      if (monthFilter) {
+        const [year, month] = monthFilter.split('-');
+        const targetYear = parseInt(year);
+        const targetMonth = parseInt(month) - 1;
+        
+        const startDate = getMonthStart(targetYear, targetMonth);
+        const endDate = getMonthEnd(targetYear, targetMonth);
+        
+        filtered = filtered.filter((livraison) => {
+          const livraisonDate = getLivraisonDate(livraison);
+          // Comparer les dates complètes avec heures
+          return livraisonDate >= startDate && livraisonDate <= endDate;
+        });
+      } 
+      // 3. Filtrer par plage de dates (uniquement si pas de filtre mois)
+      else if (startDateFilter || endDateFilter) {
+        let startDate = null;
+        let endDate = null;
+        
+        if (startDateFilter) {
+          startDate = createLocalDate(startDateFilter);
+          if (startDate) {
+            startDate.setHours(0, 0, 0, 0);
+          }
+        }
+        
+        if (endDateFilter) {
+          endDate = createLocalDate(endDateFilter);
+          if (endDate) {
+            endDate.setHours(23, 59, 59, 999);
+          }
+        }
+        
+        filtered = filtered.filter((livraison) => {
+          const livraisonDate = getLivraisonDate(livraison);
+          
+          let meetsStartCondition = true;
+          let meetsEndCondition = true;
+          
+          if (startDate) {
+            meetsStartCondition = livraisonDate >= startDate;
+          }
+          
+          if (endDate) {
+            meetsEndCondition = livraisonDate <= endDate;
+          }
+          
+          return meetsStartCondition && meetsEndCondition;
+        });
+      }
+
+      // 4. Filtrer par recherche textuelle
+      if (searchTerm.trim()) {
+        const searchLower = searchTerm.toLowerCase().trim();
+
+        filtered = filtered.filter((livraison) => {
+          if (searchInObject(livraison, searchLower)) {
+            return true;
+          }
+
+          const fieldsToCheck = [
+            livraison.id,
+            livraison.code_pin,
+            getClientFullName(livraison),
+            getClientTelephone(livraison),
+            getDestinataireName(livraison),
+            getDestinataireTelephone(livraison),
+            livraison.demande_livraison?.wilaya,
+            livraison.demande_livraison?.commune,
+            livraison.demande_livraison?.colis?.colis_label,
+            getStatusFrenchName(livraison.status),
+            formatDateForSearch(livraison),
+          ]
+            .filter(Boolean)
+            .map(String);
+
+          return fieldsToCheck.some((field) =>
+            field.toLowerCase().includes(searchLower)
+          );
+        });
+      }
+
+      setFilteredLivraisons(filtered);
+    } catch (error) {
+      console.error("Erreur lors du filtrage:", error);
+      toast.error("Erreur lors du filtrage");
+      setFilteredLivraisons(livraisons);
+    }
+  };
+
+  // ==================== STATISTIQUES ====================
+
+  const calculateStats = (data) => {
+    const stats = {
+      total: data.length,
+      en_attente: data.filter((l) => l.status === "en_attente").length,
+      prise_en_charge_ramassage: data.filter((l) => l.status === "prise_en_charge_ramassage").length,
+      ramasse: data.filter((l) => l.status === "ramasse").length,
+      en_transit: data.filter((l) => l.status === "en_transit").length,
+      prise_en_charge_livraison: data.filter((l) => l.status === "prise_en_charge_livraison").length,
+      livre: data.filter((l) => l.status === "livre").length,
+      annule: data.filter((l) => l.status === "annule").length,
+      en_cours: data.filter((l) => !["en_attente", "livre", "annule"].includes(l.status)).length,
+    };
+    setStats(stats);
+  };
+
+  // ==================== GESTION DES ACTIONS ====================
+
   const handleDeleteLivraison = async (id) => {
-    if (
-      !window.confirm("Êtes-vous sûr de vouloir supprimer cette livraison ?")
-    ) {
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette livraison ?")) {
       return;
     }
 
@@ -389,6 +413,7 @@ const LivraisonsList = () => {
         status: statusFilter,
         startDate: startDateFilter,
         endDate: endDateFilter,
+        month: monthFilter,
         format: format,
         filteredLivraisonsCount: filteredLivraisons.length,
       };
@@ -410,10 +435,11 @@ const LivraisonsList = () => {
     setStatusFilter("");
     setStartDateFilter("");
     setEndDateFilter("");
+    setMonthFilter("");
   };
 
   const hasActiveFilters =
-    searchTerm || statusFilter || startDateFilter || endDateFilter;
+    searchTerm || statusFilter || startDateFilter || endDateFilter || monthFilter;
 
   const LoadingSpinner = ({ className = "w-4 h-4" }) => (
     <div
@@ -421,12 +447,29 @@ const LivraisonsList = () => {
     ></div>
   );
 
+  const generateMonthOptions = () => {
+    const options = [];
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    
+    // Générer les 12 derniers mois
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(currentYear, currentDate.getMonth() - i, 1);
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const monthValue = `${year}-${String(month + 1).padStart(2, '0')}`;
+      const monthName = getFrenchMonthName(month);
+      options.push({ value: monthValue, label: `${monthName} ${year}` });
+    }
+    
+    return options;
+  };
+
   const statCards = [
     {
       title: "Total Livraisons",
       value: stats.total,
       icon: FaTruck,
-      color: "bg-blue-500",
       textColor: "text-blue-500",
       description: "Toutes les livraisons",
     },
@@ -434,7 +477,6 @@ const LivraisonsList = () => {
       title: "En Attente",
       value: stats.en_attente,
       icon: FaClock,
-      color: "bg-yellow-500",
       textColor: "text-yellow-500",
       description: "En attente de traitement",
     },
@@ -442,7 +484,6 @@ const LivraisonsList = () => {
       title: "En Cours",
       value: stats.en_cours,
       icon: FaBox,
-      color: "bg-orange-500",
       textColor: "text-orange-500",
       description: "Livraisons en cours",
     },
@@ -450,7 +491,6 @@ const LivraisonsList = () => {
       title: "Livrées",
       value: stats.livre,
       icon: FaCheckCircle,
-      color: "bg-green-500",
       textColor: "text-green-500",
       description: "Livraisons terminées",
     },
@@ -458,7 +498,6 @@ const LivraisonsList = () => {
       title: "Annulées",
       value: stats.annule,
       icon: FaExclamationTriangle,
-      color: "bg-red-500",
       textColor: "text-red-500",
       description: "Livraisons annulées",
     },
@@ -530,7 +569,7 @@ const LivraisonsList = () => {
         <div className="flex flex-col gap-4">
           {/* Première ligne : Filtres principaux */}
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-5">
-            {/* Barre de recherche améliorée */}
+            {/* Barre de recherche */}
             <div className="lg:col-span-2">
               <div className="relative">
                 <MagnifyingGlassIcon className="absolute w-5 h-5 text-gray-400 transform -translate-y-1/2 left-3 top-1/2" />
@@ -540,12 +579,8 @@ const LivraisonsList = () => {
                   className="w-full pl-10 input-field"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  title="Recherche dans tous les champs : ID, wilaya, commune, nom client, téléphone, destinataire, etc."
                 />
               </div>
-              <p className="mt-1 text-xs text-gray-500">
-                Recherche dans tous les champs de la livraison
-              </p>
             </div>
 
             {/* Filtre par statut */}
@@ -557,47 +592,67 @@ const LivraisonsList = () => {
               >
                 <option value="">Tous les statuts</option>
                 <option value="en_attente">En attente</option>
-                <option value="prise_en_charge_ramassage">
-                  Prise en charge ramassage
-                </option>
+                <option value="prise_en_charge_ramassage">Prise en charge ramassage</option>
                 <option value="ramasse">Ramasse</option>
                 <option value="en_transit">En transit</option>
-                <option value="prise_en_charge_livraison">
-                  Prise en charge livraison
-                </option>
+                <option value="prise_en_charge_livraison">Prise en charge livraison</option>
                 <option value="livre">Livré</option>
                 <option value="annule">Annulé</option>
               </select>
             </div>
 
-            {/* Filtre par période - Date de début */}
-            <div className="relative">
-              <FaCalendarDay className="absolute w-4 h-4 text-gray-400 transform -translate-y-1/2 left-3 top-1/2" />
-              <input
-                type="date"
-                className="w-full pl-10 input-field"
-                value={startDateFilter}
-                onChange={(e) => setStartDateFilter(e.target.value)}
-                title="Date de début de la période"
-                max={endDateFilter || undefined}
-              />
+            {/* Filtre par mois */}
+            <div>
+              <select
+                className="w-full input-field"
+                value={monthFilter}
+                onChange={(e) => {
+                  setMonthFilter(e.target.value);
+                  // Réinitialiser les filtres de dates quand on choisit un mois
+                  if (e.target.value) {
+                    setStartDateFilter("");
+                    setEndDateFilter("");
+                  }
+                }}
+              >
+                <option value="">Tous les mois</option>
+                {generateMonthOptions().map((month) => (
+                  <option key={month.value} value={month.value}>
+                    {month.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {/* Filtre par période - Date de fin */}
-            <div className="relative">
-              <FaCalendarAlt className="absolute w-4 h-4 text-gray-400 transform -translate-y-1/2 left-3 top-1/2" />
-              <input
-                type="date"
-                className="w-full pl-10 input-field"
-                value={endDateFilter}
-                onChange={(e) => setEndDateFilter(e.target.value)}
-                title="Date de fin de la période"
-                min={startDateFilter || undefined}
-              />
-            </div>
+            {/* Filtre par période - n'afficher que si aucun mois n'est sélectionné */}
+            {!monthFilter && (
+              <>
+                <div className="relative">
+                  <FaCalendarDay className="absolute w-4 h-4 text-gray-400 transform -translate-y-1/2 left-3 top-1/2" />
+                  <input
+                    type="date"
+                    className="w-full pl-10 input-field"
+                    value={startDateFilter}
+                    onChange={(e) => setStartDateFilter(e.target.value)}
+                    placeholder="Date début"
+                  />
+                </div>
+
+                <div className="relative">
+                  <FaCalendarAlt className="absolute w-4 h-4 text-gray-400 transform -translate-y-1/2 left-3 top-1/2" />
+                  <input
+                    type="date"
+                    className="w-full pl-10 input-field"
+                    value={endDateFilter}
+                    onChange={(e) => setEndDateFilter(e.target.value)}
+                    placeholder="Date fin"
+                  />
+                </div>
+              </>
+            )}
           </div>
 
-          {/* Deuxième ligne : Boutons d'action */}
+          {/* Boutons d'action */}
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex gap-2">
               {hasActiveFilters && (
@@ -617,11 +672,7 @@ const LivraisonsList = () => {
                 disabled={exportLoading || filteredLivraisons.length === 0}
                 className="flex items-center gap-2 px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
               >
-                {exportLoading ? (
-                  <LoadingSpinner className="w-4 h-4" />
-                ) : (
-                  <FaFileExcel className="w-4 h-4" />
-                )}
+                {exportLoading ? <LoadingSpinner /> : <FaFileExcel />}
                 Exporter ({filteredLivraisons.length})
               </button>
             </div>
@@ -630,44 +681,9 @@ const LivraisonsList = () => {
           {/* Indicateur de résultats */}
           {hasActiveFilters && (
             <div className="p-3 text-sm bg-blue-50 border border-blue-200 rounded-md">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-blue-800">
-                    {filteredLivraisons.length} livraison(s) trouvée(s)
-                  </p>
-                  <div className="flex flex-wrap gap-2 mt-1 text-blue-600">
-                    {searchTerm && (
-                      <span className="px-2 py-1 text-xs bg-blue-100 rounded">
-                        Recherche: "{searchTerm}"
-                      </span>
-                    )}
-                    {statusFilter && (
-                      <span className="px-2 py-1 text-xs bg-blue-100 rounded">
-                        Statut: {getStatusFrenchName(statusFilter)}
-                      </span>
-                    )}
-                    {startDateFilter && endDateFilter && (
-                      <span className="px-2 py-1 text-xs bg-blue-100 rounded">
-                        Période:{" "}
-                        {new Date(startDateFilter).toLocaleDateString("fr-FR")}{" "}
-                        - {new Date(endDateFilter).toLocaleDateString("fr-FR")}
-                      </span>
-                    )}
-                    {startDateFilter && !endDateFilter && (
-                      <span className="px-2 py-1 text-xs bg-blue-100 rounded">
-                        Date:{" "}
-                        {new Date(startDateFilter).toLocaleDateString("fr-FR")}
-                      </span>
-                    )}
-                    {endDateFilter && !startDateFilter && (
-                      <span className="px-2 py-1 text-xs bg-blue-100 rounded">
-                        Jusqu'au:{" "}
-                        {new Date(endDateFilter).toLocaleDateString("fr-FR")}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
+              <p className="font-medium text-blue-800">
+                {filteredLivraisons.length} livraison(s) trouvée(s)
+              </p>
             </div>
           )}
         </div>
@@ -698,14 +714,6 @@ const LivraisonsList = () => {
                 ? "Aucune livraison ne correspond aux filtres"
                 : "Aucune livraison disponible"}
             </h3>
-            {hasActiveFilters && (
-              <button
-                onClick={resetAllFilters}
-                className="px-4 py-2 mt-4 text-primary-600 hover:text-primary-800"
-              >
-                Réinitialiser les filtres
-              </button>
-            )}
           </div>
         )}
       </div>
@@ -721,184 +729,54 @@ const LivraisonsList = () => {
 
             <div className="inline-block w-full max-w-md my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
               <div className="px-6 pt-6 pb-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium leading-6 text-gray-900">
-                    Exporter les livraisons
-                  </h3>
-                  {filteredLivraisons.length > 5000 && (
-                    <span className="px-2 py-1 text-xs font-bold text-red-600 bg-red-100 rounded-full">
-                      ⚠️ GROS VOLUME
-                    </span>
-                  )}
-                </div>
+                <h3 className="text-lg font-medium leading-6 text-gray-900">
+                  Exporter les livraisons
+                </h3>
                 <p className="mt-1 text-sm text-gray-500">
                   {filteredLivraisons.length} livraison(s) à exporter
                 </p>
 
-                {filteredLivraisons.length > 5000 && (
-                  <div className="p-3 mt-3 text-sm text-yellow-700 bg-yellow-50 rounded-md">
-                    <div className="flex items-start">
-                      <FaInfoCircle className="flex-shrink-0 w-5 h-5 mt-0.5 mr-2" />
-                      <div>
-                        <p className="font-medium">
-                          Attention : Gros volume détecté
-                        </p>
-                        <p className="mt-1">
-                          L'export de {filteredLivraisons.length} livraisons
-                          peut prendre du temps et utiliser beaucoup de mémoire.
-                          Pour de meilleures performances :
-                        </p>
-                        <ul className="pl-5 mt-1 list-disc">
-                          <li>Appliquez des filtres (dates, statuts)</li>
-                          <li>Exportez par lots plus petits</li>
-                          <li>
-                            Privilégiez le format CSV pour les gros volumes
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <p className="mt-3 text-xs text-gray-600">
-                  Les champs exportés seront:
-                </p>
-                <div className="mt-2 text-xs text-gray-600 grid grid-cols-2 gap-1">
-                  <div>• ID</div>
-                  <div>• Client</div>
-                  <div>• Téléphone Client</div>
-                  <div>• Destinataire</div>
-                  <div>• Téléphone Destinataire</div>
-                  <div>• Label Colis</div>
-                  <div>• Statut</div>
-                  <div>• Date Création</div>
-                  <div>• Date Ramassage</div>
-                  <div>• Date Livraison</div>
-                  <div>• Ramassé par</div>
-                  <div>• Distribué par</div>
-                  <div>• Wilaya Départ</div>
-                  <div>• Wilaya Arrivé</div>
-                  <div>• Poids (kg)</div>
-                  <div>• Prix Colis</div>
-                  <div>• Prix Livraison</div>
-                </div>
-              </div>
-
-              <div className="px-6 py-4">
-                <div className="space-y-4">
-                  <div>
-                    <p className="mb-3 text-sm font-medium text-gray-700">
-                      Choisir le format:
-                    </p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          setExportLoading(true);
-                          handleExport("pdf").finally(() =>
-                            setExportLoading(false),
-                          );
-                          setShowExportModal(false);
-                        }}
-                        disabled={exportLoading}
-                        className="flex items-center justify-center flex-1 gap-2 px-4 py-3 text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
-                      >
-                        <FaFilePdf className="w-5 h-5" />
-                        PDF
-                      </button>
-                      <button
-                        onClick={() => {
-                          setExportLoading(true);
-                          handleExport("xlsx").finally(() =>
-                            setExportLoading(false),
-                          );
-                          setShowExportModal(false);
-                        }}
-                        disabled={exportLoading}
-                        className="flex items-center justify-center flex-1 gap-2 px-4 py-3 text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
-                      >
-                        <FaFileExcel className="w-5 h-5" />
-                        Excel
-                      </button>
-                      <button
-                        onClick={() => {
-                          setExportLoading(true);
-                          handleExport("csv").finally(() =>
-                            setExportLoading(false),
-                          );
-                          setShowExportModal(false);
-                        }}
-                        disabled={exportLoading}
-                        className="flex items-center justify-center flex-1 gap-2 px-4 py-3 text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        <FaFileAlt className="w-5 h-5" />
-                        CSV
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Informations sur les filtres appliqués */}
-                  <div className="p-3 text-xs bg-gray-50 rounded-md">
-                    <p className="font-medium text-gray-700">
-                      Filtres appliqués:
-                    </p>
-                    <div className="mt-1 space-y-1">
-                      {searchTerm && (
-                        <p>
-                          Recherche:{" "}
-                          <span className="font-medium">"{searchTerm}"</span>
-                        </p>
-                      )}
-                      {statusFilter && (
-                        <p>
-                          Statut:{" "}
-                          <span className="font-medium">
-                            {getStatusFrenchName(statusFilter)}
-                          </span>
-                        </p>
-                      )}
-                      {startDateFilter && (
-                        <p>
-                          Date début:{" "}
-                          <span className="font-medium">
-                            {new Date(startDateFilter).toLocaleDateString(
-                              "fr-FR",
-                            )}
-                          </span>
-                        </p>
-                      )}
-                      {endDateFilter && (
-                        <p>
-                          Date fin:{" "}
-                          <span className="font-medium">
-                            {new Date(endDateFilter).toLocaleDateString(
-                              "fr-FR",
-                            )}
-                          </span>
-                        </p>
-                      )}
-                      {!searchTerm &&
-                        !statusFilter &&
-                        !startDateFilter &&
-                        !endDateFilter && (
-                          <p className="text-gray-500">
-                            Aucun filtre spécifique
-                          </p>
-                        )}
-                    </div>
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-gray-700">Choisir le format:</p>
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={() => {
+                        handleExport("pdf");
+                        setShowExportModal(false);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700"
+                    >
+                      <FaFilePdf /> PDF
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleExport("xlsx");
+                        setShowExportModal(false);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700"
+                    >
+                      <FaFileExcel /> Excel
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleExport("csv");
+                        setShowExportModal(false);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                    >
+                      <FaFileAlt /> CSV
+                    </button>
                   </div>
                 </div>
               </div>
 
               <div className="px-6 py-4 bg-gray-50">
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowExportModal(false)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                  >
-                    Annuler
-                  </button>
-                </div>
+                <button
+                  onClick={() => setShowExportModal(false)}
+                  className="w-full px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100"
+                >
+                  Annuler
+                </button>
               </div>
             </div>
           </div>

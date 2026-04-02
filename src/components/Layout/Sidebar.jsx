@@ -1,6 +1,7 @@
 // src/components/Layout/Sidebar.jsx
 import React, { useState } from "react";
 import { NavLink } from "react-router-dom";
+import { FaExchangeAlt } from "react-icons/fa";
 import {
   FaHome,
   FaUsers,
@@ -30,6 +31,7 @@ const Sidebar = () => {
     { name: "Utilisateurs", href: "/users", icon: FaUsers },
     { name: "Livraisons", href: "/livraisons", icon: FaTruck },
     { name: "Livreurs", href: "/livreurs", icon: FaUserFriends },
+    { name: "Assignations", href: "/assignations", icon: FaExchangeAlt },
     {
       name: "Navettes",
       icon: FaBoxes,

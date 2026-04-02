@@ -53,7 +53,8 @@ const NavetteDetail = () => {
     try {
       setLoadingLivraisons(true);
       const response = await navetteService.getLivraisonsDisponibles({
-        wilaya_depart: navette?.wilaya_depart_id
+        wilaya_depart: navette?.wilaya_depart_id,
+        non_assignees: true
       });
       let livraisons = response.data?.data || response.data || [];
       
@@ -219,6 +220,10 @@ const NavetteDetail = () => {
   const nbLivraisons = navette.nb_livraisons || navette.livraisons?.length || 0;
   const etapes = buildEtapeList();
   const totalEtapes = etapes.length;
+  // Permettre l'ajout/retrait de livraisons pour planifiée ET en_cours
+  const canEditLivraisons = ["planifiee", "en_cours"].includes(navette.status);
+  // Permettre la modification des informations pour planifiée uniquement
+  const canEditInfos = navette.status === "planifiee";
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -241,15 +246,16 @@ const NavetteDetail = () => {
             <button onClick={handleExportPDF} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
               <FaDownload /> PDF
             </button>
-            {navette.status === "planifiee" && (
-              <>
-                <button onClick={() => navigate(`/navettes/edit/${id}`)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                  <FaEdit /> Modifier
-                </button>
-                <button onClick={handleDelete} className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
-                  <FaTrash /> Supprimer
-                </button>
-              </>
+            {/* Bouton Modifier - visible pour planifiée ET en_cours */}
+            {canEditLivraisons && (
+              <button onClick={() => navigate(`/navettes/edit/${id}`)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <FaEdit /> Modifier
+              </button>
+            )}
+            {canEditInfos && (
+              <button onClick={handleDelete} className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                <FaTrash /> Supprimer
+              </button>
             )}
             {navette.status === "terminee" && (
               <button onClick={handleViewGains} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
@@ -520,7 +526,8 @@ const NavetteDetail = () => {
           <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <FaBoxes className="text-primary-600" /> Livraisons ({nbLivraisons})
           </h2>
-          {navette.status === "planifiee" && (
+          {/* Bouton ajouter des livraisons - visible pour planifiée ET en_cours */}
+          {canEditLivraisons && (
             <button 
               onClick={() => { fetchLivraisonsDisponibles(); setShowAddLivraisonModal(true); }} 
               className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
@@ -532,7 +539,7 @@ const NavetteDetail = () => {
         <NavetteLivraisonList 
           livraisons={navette.livraisons || []} 
           onRemove={handleRemoveLivraison} 
-          canRemove={navette.status === "planifiee"} 
+          canRemove={canEditLivraisons}
         />
       </div>
 

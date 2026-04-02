@@ -158,6 +158,122 @@ const gestionnaireService = {
     }
   },
 
+  // ==================== GESTION DES LIVREURS POUR GESTIONNAIRE ====================
+
+  /**
+   * Récupérer tous les livreurs disponibles pour un gestionnaire
+   * (natif de sa wilaya + assignés)
+   * @param {string} gestionnaireId - ID du gestionnaire
+   */
+  getLivreursDisponibles: async (gestionnaireId) => {
+    try {
+      const response = await api.get(`/manager/livreurs`);
+      
+      // La route /manager/livreurs retourne déjà les livreurs natifs + assignés
+      if (response.data && response.data.success) {
+        return {
+          success: true,
+          data: response.data.data,
+          stats: response.data.stats
+        };
+      }
+      
+      return { success: false, data: [], stats: {} };
+      
+    } catch (error) {
+      console.error(`❌ Erreur getLivreursDisponibles ${gestionnaireId}:`, error.message);
+      return { success: false, data: [], stats: {} };
+    }
+  },
+
+  /**
+   * Récupérer les livreurs natifs d'un gestionnaire (ceux de sa wilaya)
+   * @param {string} gestionnaireId - ID du gestionnaire
+   */
+  getLivreursNatifs: async (gestionnaireId) => {
+    try {
+      const response = await api.get(`/manager/livreurs`);
+      
+      if (response.data && response.data.success) {
+        // Filtrer les livreurs natifs (ceux avec origine = 'natif')
+        const livreursNatifs = response.data.data.filter(l => l.origine === 'natif');
+        return livreursNatifs;
+      }
+      
+      return [];
+      
+    } catch (error) {
+      console.error(`❌ Erreur getLivreursNatifs ${gestionnaireId}:`, error.message);
+      return [];
+    }
+  },
+
+  /**
+   * Récupérer les livreurs assignés (invités) d'un gestionnaire
+   * @param {string} gestionnaireId - ID du gestionnaire
+   */
+  getLivreursAssignes: async (gestionnaireId) => {
+    try {
+      const response = await api.get(`/manager/livreurs`);
+      
+      if (response.data && response.data.success) {
+        // Filtrer les livreurs assignés (ceux avec origine = 'assigne')
+        const livreursAssignes = response.data.data.filter(l => l.origine === 'assigne');
+        return livreursAssignes;
+      }
+      
+      return [];
+      
+    } catch (error) {
+      console.error(`❌ Erreur getLivreursAssignes ${gestionnaireId}:`, error.message);
+      return [];
+    }
+  },
+
+  /**
+   * Récupérer un livreur spécifique avec son origine
+   * @param {string} gestionnaireId - ID du gestionnaire
+   * @param {string} livreurId - ID du livreur
+   */
+  getLivreurAvecOrigine: async (gestionnaireId, livreurId) => {
+    try {
+      const response = await api.get(`/manager/livreurs/${livreurId}`);
+      
+      if (response.data && response.data.success) {
+        return response.data.data;
+      }
+      
+      return null;
+      
+    } catch (error) {
+      console.error(`❌ Erreur getLivreurAvecOrigine:`, error.message);
+      return null;
+    }
+  },
+
+  /**
+   * Activer/désactiver un livreur (pour le gestionnaire)
+   * @param {string} livreurId - ID du livreur
+   * @param {boolean} desactiver - true pour désactiver
+   */
+  toggleLivreurActivation: async (livreurId, desactiver) => {
+    try {
+      const response = await api.patch(`/manager/livreurs/${livreurId}/toggle-activation`, {
+        desactiver: desactiver,
+      });
+      
+      if (response.data && response.data.success) {
+        return response.data;
+      }
+      
+      return response.data;
+      
+    } catch (error) {
+      console.error(`❌ Erreur toggleLivreurActivation:`, error.message);
+      throw error;
+    }
+  },
+
   // ==================== STATISTIQUES ET GAINS ====================
 
   /**
@@ -250,7 +366,7 @@ const gestionnaireService = {
         user: gestionnaire.user,
         wilaya_id: gestionnaire.wilaya_id,
         wilaya_nom: gestionnaire.wilaya_nom || `Wilaya ${gestionnaire.wilaya_id}`,
-        status: gestionnaire.status || 'actif',
+        status: gestionnaire.status || 'active',
         nom: gestionnaire.user.nom || '',
         prenom: gestionnaire.user.prenom || '',
         telephone: gestionnaire.user.telephone || '',
@@ -276,7 +392,7 @@ const gestionnaireService = {
       },
       wilaya_id: gestionnaire.wilaya_id,
       wilaya_nom: gestionnaire.wilaya_nom || `Wilaya ${gestionnaire.wilaya_id}`,
-      status: gestionnaire.status || 'actif',
+      status: gestionnaire.status || 'active',
       nom: gestionnaire.nom || '',
       prenom: gestionnaire.prenom || '',
       telephone: gestionnaire.telephone || '',
@@ -406,6 +522,46 @@ const gestionnaireService = {
     }
   },
 
+  // ==================== RAPPORTS ====================
+
+  /**
+   * Exporter les données des gestionnaires
+   * @param {Object} params - { format, ...filtres }
+   * @returns {Promise}
+   */
+  exportGestionnaires: async (params = {}) => {
+    try {
+      const response = await api.get('/admin/gestionnaires/export', {
+        params,
+        responseType: 'blob'
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Erreur exportGestionnaires:', error.message);
+      throw error;
+    }
+  },
+
+  /**
+   * Exporter les gains d'un gestionnaire
+   * @param {string} gestionnaireId - ID du gestionnaire
+   * @param {Object} params - { format, date_debut, date_fin }
+   */
+  exportGains: async (gestionnaireId, params = {}) => {
+    try {
+      const response = await api.get(`/admin/gestionnaires/${gestionnaireId}/gains/export`, {
+        params,
+        responseType: 'blob'
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Erreur exportGains:', error.message);
+      throw error;
+    }
+  },
+
   // ==================== VALIDATION ====================
 
   /**
@@ -434,24 +590,168 @@ const gestionnaireService = {
     };
   },
 
-  // ==================== RAPPORTS ====================
+  // ==================== TABLEAU DE BORD (DASHBOARD) ====================
 
   /**
-   * Exporter les données des gestionnaires
-   * @param {Object} params - { format, ...filtres }
-   * @returns {Promise}
+   * Récupérer les données du tableau de bord pour un gestionnaire
+   * @param {string} gestionnaireId - ID du gestionnaire
+   * @returns {Promise<Object>}
    */
-  exportGestionnaires: async (params = {}) => {
+  getDashboardData: async (gestionnaireId) => {
     try {
-      const response = await api.get('/admin/gestionnaires/export', {
-        params,
-        responseType: 'blob'
+      const response = await api.get('/manager/dashboard');
+      
+      if (response.data && response.data.success) {
+        return response.data.data;
+      }
+      
+      return {
+        stats: {
+          total_livraisons: 0,
+          livraisons_en_cours: 0,
+          livraisons_terminees: 0,
+          total_gains: 0,
+          gains_mois: 0,
+          nombre_livreurs: 0,
+          taux_satisfaction: 0
+        },
+        livraisons_recentes: [],
+        gains_par_mois: [],
+        livreurs_top: []
+      };
+      
+    } catch (error) {
+      console.error(`❌ Erreur getDashboardData ${gestionnaireId}:`, error.message);
+      return {
+        stats: {
+          total_livraisons: 0,
+          livraisons_en_cours: 0,
+          livraisons_terminees: 0,
+          total_gains: 0,
+          gains_mois: 0,
+          nombre_livreurs: 0,
+          taux_satisfaction: 0
+        },
+        livraisons_recentes: [],
+        gains_par_mois: [],
+        livreurs_top: []
+      };
+    }
+  },
+
+  // ==================== PROFIL GESTIONNAIRE ====================
+
+  /**
+   * Récupérer le profil du gestionnaire connecté
+   * @returns {Promise<Object>}
+   */
+  getMonProfil: async () => {
+    try {
+      const response = await api.get('/manager/profile');
+      
+      if (response.data && response.data.success) {
+        return gestionnaireService.formatGestionnaire(response.data.data);
+      }
+      
+      return null;
+      
+    } catch (error) {
+      console.error('❌ Erreur getMonProfil:', error.message);
+      throw error;
+    }
+  },
+
+  /**
+   * Mettre à jour le profil du gestionnaire
+   * @param {Object} profileData - Données du profil
+   */
+  updateMonProfil: async (profileData) => {
+    try {
+      const response = await api.put('/manager/profile', profileData);
+      
+      if (response.data && response.data.success) {
+        return response.data.data;
+      }
+      
+      return response.data;
+      
+    } catch (error) {
+      console.error('❌ Erreur updateMonProfil:', error.message);
+      throw error;
+    }
+  },
+
+  /**
+   * Changer le mot de passe du gestionnaire
+   * @param {Object} passwordData - { current_password, new_password, new_password_confirmation }
+   */
+  changePassword: async (passwordData) => {
+    try {
+      const response = await api.post('/manager/profile/change-password', passwordData);
+      
+      if (response.data && response.data.success) {
+        return response.data;
+      }
+      
+      return response.data;
+      
+    } catch (error) {
+      console.error('❌ Erreur changePassword:', error.message);
+      throw error;
+    }
+  },
+
+  // ==================== STATISTIQUES DÉTAILLÉES ====================
+
+  /**
+   * Récupérer les statistiques de livraisons par statut
+   * @param {string} gestionnaireId - ID du gestionnaire
+   * @returns {Promise<Object>}
+   */
+  getStatistiquesLivraisons: async (gestionnaireId) => {
+    try {
+      const response = await api.get('/manager/livraisons/statistiques');
+      
+      if (response.data && response.data.success) {
+        return response.data.data;
+      }
+      
+      return {
+        par_statut: {},
+        par_jour: [],
+        par_mois: []
+      };
+      
+    } catch (error) {
+      console.error(`❌ Erreur getStatistiquesLivraisons:`, error.message);
+      return {
+        par_statut: {},
+        par_jour: [],
+        par_mois: []
+      };
+    }
+  },
+
+  /**
+   * Récupérer l'évolution des gains sur une période
+   * @param {string} gestionnaireId - ID du gestionnaire
+   * @param {string} periode - 'jour', 'semaine', 'mois', 'annee'
+   */
+  getEvolutionGains: async (gestionnaireId, periode = 'mois') => {
+    try {
+      const response = await api.get(`/manager/gains/evolution`, {
+        params: { periode }
       });
       
-      return response;
+      if (response.data && response.data.success) {
+        return response.data.data;
+      }
+      
+      return [];
+      
     } catch (error) {
-      console.error('❌ Erreur exportGestionnaires:', error.message);
-      throw error;
+      console.error(`❌ Erreur getEvolutionGains:`, error.message);
+      return [];
     }
   }
 };

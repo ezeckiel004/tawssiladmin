@@ -471,7 +471,8 @@ const NavettesList = () => {
                               <button onClick={() => navigate(`/navettes/${navette.id}`)} className="text-primary-600 hover:text-primary-900" title="Voir détails">
                                 <FaEye />
                               </button>
-                              {navette.status === "planifiee" && (
+                              {/* Bouton Modifier - visible pour planifiée ET en_cours */}
+                              {["planifiee", "en_cours"].includes(navette.status) && (
                                 <button onClick={() => navigate(`/navettes/edit/${navette.id}`)} className="text-blue-600 hover:text-blue-900" title="Modifier">
                                   <FaEdit />
                                 </button>
@@ -559,7 +560,8 @@ const NavettesList = () => {
                       <button onClick={(e) => { e.stopPropagation(); navigate(`/navettes/${navette.id}`); }} className="text-primary-600 hover:text-primary-900" title="Voir détails">
                         <FaEye size={18} />
                       </button>
-                      {navette.status === "planifiee" && (
+                      {/* Bouton Modifier - visible pour planifiée ET en_cours */}
+                      {["planifiee", "en_cours"].includes(navette.status) && (
                         <button onClick={(e) => { e.stopPropagation(); navigate(`/navettes/edit/${navette.id}`); }} className="text-blue-600 hover:text-blue-900" title="Modifier">
                           <FaEdit size={18} />
                         </button>

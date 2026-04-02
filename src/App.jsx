@@ -31,6 +31,8 @@ import LivraisonDetail from "./pages/Livraisons/LivraisonDetail";
 import LivreursList from "./pages/Livreurs/LivreursList";
 import LivreurDetail from "./pages/Livreurs/LivreurDetail";
 
+import LivreurAssignationsList from "./pages/Assignations/LivreurAssignationsList";
+
 // Pages Clients
 import ClientsList from "./pages/Clients/ClientsList";
 import ClientDetail from "./pages/Clients/ClientDetail";
@@ -135,6 +137,8 @@ function App() {
             {/* LIVREURS */}
             <Route path="livreurs" element={<LivreursList />} />
             <Route path="livreurs/:id" element={<LivreurDetail />} />
+
+            <Route path="assignations" element={<LivreurAssignationsList />} />
 
             {/* CLIENTS */}
             <Route path="clients" element={<ClientsList />} />
