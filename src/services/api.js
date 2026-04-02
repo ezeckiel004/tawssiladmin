@@ -3,8 +3,8 @@ import { toast } from 'react-hot-toast';
 
 // Créer une instance axios avec la configuration de base
 const api = axios.create({
-  // baseURL: 'https://api.tawssilgo.com/api',
-  baseURL: 'http://localhost:8000/api',
+  baseURL: 'https://api.tawssilgo.com/api',
+  // baseURL: 'http://localhost:8000/api',
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
