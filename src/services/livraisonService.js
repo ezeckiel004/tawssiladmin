@@ -12,7 +12,6 @@ const livraisonService = {
       return response.data;
     } catch (error) {
       console.error('Erreur getAllLivraisonsAdmin:', error);
-      // Fallback sur la route normale si admin non disponible
       return await livraisonService.getAllLivraisons();
     }
   },
@@ -24,7 +23,6 @@ const livraisonService = {
       return response.data;
     } catch (error) {
       console.error('Erreur getLivraisonByIdAdmin:', error);
-      // Fallback sur la route normale
       return await livraisonService.getLivraisonById(id);
     }
   },
@@ -36,7 +34,6 @@ const livraisonService = {
       return response.data;
     } catch (error) {
       console.error('Erreur updateStatusAdmin:', error);
-      // Fallback sur la route normale
       return await livraisonService.updateStatus(livraisonId, status);
     }
   },
@@ -51,7 +48,6 @@ const livraisonService = {
       return response.data;
     } catch (error) {
       console.error('Erreur assignLivreurAdmin:', error);
-      // Fallback sur la route normale
       return await livraisonService.assignLivreur(livraisonId, livreurId, type);
     }
   },
@@ -63,7 +59,6 @@ const livraisonService = {
       return response.data;
     } catch (error) {
       console.error('Erreur deleteLivraisonAdmin:', error);
-      // Fallback sur la route normale
       return await livraisonService.deleteLivraison(livraisonId);
     }
   },
@@ -74,7 +69,6 @@ const livraisonService = {
     try {
       const queryParams = new URLSearchParams();
       
-      // Ajouter les paramètres de filtrage
       if (params.search) queryParams.append('search', params.search);
       if (params.status) queryParams.append('status', params.status);
       if (params.startDate) queryParams.append('startDate', params.startDate);
@@ -90,7 +84,6 @@ const livraisonService = {
         count: params.filteredLivraisonsCount
       });
       
-      // Avertissement pour les gros exports
       if (params.filteredLivraisonsCount > 5000) {
         const confirm = window.confirm(
           `⚠️ ATTENTION : Gros export détecté\n\n` +
@@ -105,7 +98,6 @@ const livraisonService = {
         }
       }
       
-      // Construire l'URL
       const baseUrl = '/admin/livraisons/export/excel';
       const queryString = queryParams.toString();
       const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
@@ -114,18 +106,16 @@ const livraisonService = {
       
       const response = await api.get(url, {
         responseType: 'blob',
-        timeout: 180000, // 3 minutes timeout pour les gros fichiers
+        timeout: 180000,
       });
       
       console.log('Réponse reçue, content-type:', response.headers['content-type']);
       console.log('Taille du fichier:', response.data.size, 'bytes');
       
-      // Télécharger le fichier
       const extension = params.format || 'xlsx';
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
       const filename = `livraisons_export_${dateStr}.${extension}`;
       
-      // Utiliser la méthode downloadFile de userService
       await userService.downloadFile(response, filename);
       
       return { 
@@ -135,14 +125,11 @@ const livraisonService = {
       };
     } catch (error) {
       console.error('Erreur exportLivraisonsExcel:', error);
-      console.error('URL appelée:', error.config?.url);
-      console.error('Status:', error.response?.status);
-      console.error('Data:', error.response?.data);
       
       let errorMessage = 'Erreur lors de l\'export';
       
       if (error.message === 'Export annulé par l\'utilisateur') {
-        throw error; // Ne pas afficher de toast pour les annulations manuelles
+        throw error;
       } else if (error.response?.status === 400) {
         errorMessage = error.response.data?.message || 'Trop de données à exporter. Appliquez des filtres plus restrictifs.';
       } else if (error.response?.status === 404) {
@@ -168,7 +155,6 @@ const livraisonService = {
 
   // ==================== USER METHODS ====================
 
-  // Récupérer toutes les livraisons
   getAllLivraisons: async () => {
     try {
       const response = await api.get('/livraisons');
@@ -179,7 +165,6 @@ const livraisonService = {
     }
   },
 
-  // Récupérer une livraison par ID
   getLivraisonById: async (id) => {
     try {
       const response = await api.get(`/livraisons/${id}`);
@@ -190,7 +175,6 @@ const livraisonService = {
     }
   },
 
-  // Récupérer les livraisons par client
   getLivraisonsByClient: async (clientId) => {
     try {
       const response = await api.get(`/livraisons/getByClient/${clientId}`);
@@ -201,7 +185,6 @@ const livraisonService = {
     }
   },
 
-  // Récupérer les livraisons par livreur
   getLivraisonsByLivreur: async (livreurId) => {
     try {
       const response = await api.get(`/livraisons/getByLivreur/${livreurId}`);
@@ -212,7 +195,6 @@ const livraisonService = {
     }
   },
 
-  // Mettre à jour le statut d'une livraison
   updateStatus: async (livraisonId, status) => {
     try {
       const response = await api.patch(`/livraisons/${livraisonId}/status`, { status });
@@ -223,7 +205,6 @@ const livraisonService = {
     }
   },
 
-  // Attribuer un livreur à une livraison
   assignLivreur: async (livraisonId, livreurId, type) => {
     try {
       const response = await api.patch(`/livraisons/${livraisonId}/assign-livreur`, {
@@ -237,7 +218,6 @@ const livraisonService = {
     }
   },
 
-  // Récupérer les statistiques d'un client
   getClientStats: async (clientId) => {
     try {
       const response = await api.get(`/livraisons/${clientId}/statistiques`);
@@ -248,7 +228,6 @@ const livraisonService = {
     }
   },
 
-  // Récupérer les livraisons en cours
   getLivraisonsEnCours: async () => {
     try {
       const response = await api.get('/livraisons/en-cours');
@@ -259,7 +238,6 @@ const livraisonService = {
     }
   },
 
-  // Supprimer une livraison
   deleteLivraison: async (livraisonId) => {
     try {
       const response = await api.delete(`/livraisons/${livraisonId}`);
@@ -270,7 +248,6 @@ const livraisonService = {
     }
   },
 
-  // Supprimer une livraison par client
   deleteLivraisonByClient: async (livraisonId) => {
     try {
       const response = await api.patch(`/livraisons/${livraisonId}/destroy_by_client`);
@@ -283,7 +260,6 @@ const livraisonService = {
 
   // ==================== PDF & IMPRESSION ====================
 
-  // Télécharger le PDF du bordereau
   downloadBordereauPDF: async (livraisonId) => {
     try {
       const response = await api.get(`/livraisons/${livraisonId}/bordereau-pdf`, {
@@ -297,7 +273,6 @@ const livraisonService = {
     }
   },
 
-  // Récupérer le HTML d'impression
   getPrintHTML: async (livraisonId) => {
     try {
       const response = await api.get(`/livraisons/${livraisonId}/print-html`);
@@ -308,9 +283,148 @@ const livraisonService = {
     }
   },
 
+  // ==================== NOUVELLES MÉTHODES POUR DEPOSE_AU_DEPOT ====================
+
+  /**
+   * Récupérer les détails complets d'une livraison (avec workflow)
+   * @param {string} id - ID de la livraison
+   */
+  getLivraisonDetails: async (id) => {
+    try {
+      const isAdmin = livraisonService.isAdmin();
+      const baseUrl = isAdmin ? '/admin/livraisons' : '/livraisons';
+      const response = await api.get(`${baseUrl}/${id}/details`);
+      return response.data;
+    } catch (error) {
+      console.error('Erreur getLivraisonDetails:', error);
+      return await livraisonService.smartGetLivraisonById(id);
+    }
+  },
+
+  /**
+   * Passer une livraison en transit (spécial dépôt client)
+   * @param {string} id - ID de la livraison
+   */
+  passerEnTransit: async (id) => {
+    try {
+      const response = await api.post(`/admin/livraisons/${id}/passer-en-transit`);
+      return response.data;
+    } catch (error) {
+      console.error('Erreur passerEnTransit:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Vérifier si une livraison est en mode dépôt client
+   * @param {object} livraison - Objet livraison
+   */
+  isDepotClient: (livraison) => {
+    return livraison?.demande_livraison?.depose_au_depot === true ||
+           livraison?.depose_au_depot === true;
+  },
+
+  /**
+   * Obtenir le workflow d'une livraison
+   * @param {object} livraison - Objet livraison
+   */
+  getWorkflowType: (livraison) => {
+    const isDepot = livraisonService.isDepotClient(livraison);
+    return isDepot ? 'depot_client' : 'ramassage_domicile';
+  },
+
+  /**
+   * Obtenir les actions possibles pour une livraison
+   * @param {object} livraison - Objet livraison
+   */
+  getActionsPossibles: (livraison) => {
+    if (!livraison) return {};
+    
+    const status = livraison.status;
+    const isDepot = livraisonService.isDepotClient(livraison);
+    const isAdmin = livraisonService.isAdmin();
+    
+    if (isDepot) {
+      return {
+        peutAssignerDistributeur: isAdmin && ['en_attente', 'en_transit'].includes(status),
+        peutPasserEnTransit: isAdmin && status === 'en_attente',
+        peutMarquerLivre: isAdmin && ['prise_en_charge_livraison', 'en_transit'].includes(status),
+        peutAnnuler: isAdmin && !['livre', 'annule'].includes(status),
+      };
+    } else {
+      return {
+        peutAssignerRamasseur: isAdmin && ['en_attente', 'prise_en_charge_ramassage'].includes(status),
+        peutAssignerDistributeur: isAdmin && status === 'en_transit',
+        peutMarquerRamasse: isAdmin && status === 'prise_en_charge_ramassage',
+        peutMettreEnTransit: isAdmin && status === 'ramasse',
+        peutMarquerLivre: isAdmin && status === 'prise_en_charge_livraison',
+        peutAnnuler: isAdmin && !['livre', 'annule'].includes(status),
+      };
+    }
+  },
+
+  /**
+   * Obtenir les prochaines étapes recommandées
+   * @param {object} livraison - Objet livraison
+   */
+  getProchainesEtapes: (livraison) => {
+    if (!livraison) return [];
+    
+    const status = livraison.status;
+    const isDepot = livraisonService.isDepotClient(livraison);
+    
+    if (isDepot) {
+      switch (status) {
+        case 'en_attente':
+          return [
+            '1. Assigner un distributeur (le colis est déjà au dépôt)',
+            '2. Le distributeur prend en charge et livre'
+          ];
+        case 'en_transit':
+          return [
+            '1. Le colis est en transit vers le destinataire',
+            '2. Assigner un distributeur si ce n\'est pas déjà fait'
+          ];
+        case 'prise_en_charge_livraison':
+          return [
+            '1. Le distributeur a pris en charge la livraison',
+            '2. Attendre la confirmation de livraison'
+          ];
+        default:
+          return [];
+      }
+    } else {
+      switch (status) {
+        case 'en_attente':
+          return [
+            '1. Assigner un ramasseur',
+            '2. Le ramasseur va chercher le colis',
+            '3. Assigner un distributeur pour la livraison'
+          ];
+        case 'prise_en_charge_ramassage':
+          return [
+            '1. Le ramasseur a été assigné',
+            '2. Valider le ramassage quand le colis est récupéré'
+          ];
+        case 'ramasse':
+          return [
+            '1. Le colis a été ramassé',
+            '2. Mettre en transit vers le hub',
+            '3. Assigner un distributeur'
+          ];
+        case 'en_transit':
+          return [
+            '1. Le colis est en transit',
+            '2. Assigner un distributeur'
+          ];
+        default:
+          return [];
+      }
+    }
+  },
+
   // ==================== UTILITY METHODS ====================
 
-  // Vérifier si l'utilisateur est admin
   isAdmin: () => {
     try {
       if (typeof window === 'undefined' || !window.localStorage) {
@@ -333,7 +447,6 @@ const livraisonService = {
     }
   },
 
-  // Méthode intelligente qui choisit la route selon le rôle
   smartGetLivraisonById: async (id) => {
     try {
       const isAdmin = livraisonService.isAdmin();
@@ -459,7 +572,6 @@ const livraisonService = {
     }
   },
 
-  // Méthode utilitaire pour télécharger un blob
   downloadBlob: (blob, filename) => {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -471,7 +583,6 @@ const livraisonService = {
     window.URL.revokeObjectURL(url);
   },
 
-  // Méthode complète pour télécharger le PDF
   downloadPDF: async (livraisonId) => {
     try {
       const response = await livraisonService.smartDownloadBordereauPDF(livraisonId);

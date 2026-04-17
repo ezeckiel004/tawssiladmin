@@ -25,6 +25,11 @@ const LivraisonsTable = ({
   getDestinataireName,
   getDestinataireTelephone,
 }) => {
+  // Vérifier si une livraison est en mode dépôt client
+  const isDepotClient = (livraison) => {
+    return livraison?.demande_livraison?.depose_au_depot === true;
+  };
+
   const getStatusBadge = (status) => {
     const statusConfig = {
       en_attente: {
@@ -314,7 +319,7 @@ const LivraisonsTable = ({
         <thead className="bg-gray-50">
           <tr>
             <th className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
-              ID
+              ID / Mode
             </th>
             <th className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
               <div className="flex items-center gap-2">
@@ -358,6 +363,7 @@ const LivraisonsTable = ({
             const showDeleteBtn = canDelete(livraison);
             const showCancelBtn = canCancel(livraison);
             const creationDate = getCreationDate(livraison);
+            const depotClient = isDepotClient(livraison);
 
             // Obtenir les informations via les fonctions passées en props
             const clientName = getClientFullName(livraison);
@@ -378,13 +384,20 @@ const LivraisonsTable = ({
                   <div className="text-sm text-gray-500">
                     PIN: {livraison.code_pin}
                   </div>
+                  {/* Badge Dépôt client */}
+                  {depotClient && (
+                    <span className="inline-flex items-center px-2 py-0.5 mt-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      <FaBox className="w-3 h-3 mr-1" />
+                      Dépôt client
+                    </span>
+                  )}
                   {isAnnule && (
                     <div className="text-xs text-red-600 mt-1">⚠️ Annulée</div>
                   )}
                   {isLivre && (
                     <div className="text-xs text-green-600 mt-1">✅ Livrée</div>
                   )}
-                </td>
+                 </td>
                 <td className="px-4 py-4 whitespace-nowrap">
                   <div className="flex flex-col">
                     {creationDate ? (
@@ -395,10 +408,10 @@ const LivraisonsTable = ({
                       <span className="text-sm text-gray-400">-</span>
                     )}
                   </div>
-                </td>
+                 </td>
                 <td className="px-4 py-4 whitespace-nowrap">
                   {getLocationDisplay(livraison)}
-                </td>
+                 </td>
                 <td className="px-4 py-4">
                   <div className="space-y-3">
                     {/* Client */}
@@ -432,7 +445,7 @@ const LivraisonsTable = ({
                         )}
                     </div>
                   </div>
-                </td>
+                 </td>
                 <td className="px-4 py-4">{getColisDisplay(livraison)}</td>
                 <td className="px-4 py-4">
                   {getStatusBadge(livraison.status)}
@@ -440,19 +453,23 @@ const LivraisonsTable = ({
                     <div>Ramassage: {formatDate(livraison.date_ramassage)}</div>
                     <div>Livraison: {formatDate(livraison.date_livraison)}</div>
                   </div>
-                </td>
+                 </td>
                 <td className="px-4 py-4">
                   <div className="space-y-2">
-                    <div>
-                      <div className="text-xs text-gray-600">Ramasseur:</div>
-                      <div className="text-sm font-medium">
-                        {livraison.livreur_ramasseur ? (
-                          `${livraison.livreur_ramasseur.prenom || ""} ${livraison.livreur_ramasseur.nom || ""}`.trim()
-                        ) : (
-                          <span className="text-gray-400">Non attribué</span>
-                        )}
+                    {/* Ramasseur - caché si dépôt client */}
+                    {!depotClient && (
+                      <div>
+                        <div className="text-xs text-gray-600">Ramasseur:</div>
+                        <div className="text-sm font-medium">
+                          {livraison.livreur_ramasseur ? (
+                            `${livraison.livreur_ramasseur.prenom || ""} ${livraison.livreur_ramasseur.nom || ""}`.trim()
+                          ) : (
+                            <span className="text-gray-400">Non attribué</span>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )}
+                    {/* Distributeur */}
                     <div>
                       <div className="text-xs text-gray-600">Distributeur:</div>
                       <div className="text-sm font-medium">
@@ -463,8 +480,14 @@ const LivraisonsTable = ({
                         )}
                       </div>
                     </div>
+                    {/* Indicateur dépôt client pour les livreurs */}
+                    {depotClient && (
+                      <div className="text-xs text-blue-600 mt-1">
+                        ⚡ Pas de ramasseur nécessaire
+                      </div>
+                    )}
                   </div>
-                </td>
+                 </td>
                 <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                   <div className="flex flex-col gap-2">
                     <button
@@ -500,8 +523,8 @@ const LivraisonsTable = ({
                       </button>
                     )}
                   </div>
-                </td>
-              </tr>
+                 </td>
+               </tr>
             );
           })}
         </tbody>

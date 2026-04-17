@@ -36,6 +36,7 @@ const LivraisonsList = () => {
     livre: 0,
     annule: 0,
     en_cours: 0,
+    depot_client: 0, // Nouveau compteur pour dépôt client
   });
 
   // Filtres
@@ -57,6 +58,11 @@ const LivraisonsList = () => {
     }
   }, [searchTerm, statusFilter, startDateFilter, endDateFilter, monthFilter, livraisons]);
 
+  // Vérifier si une livraison est en mode dépôt client
+  const isDepotClient = (livraison) => {
+    return livraison?.demande_livraison?.depose_au_depot === true;
+  };
+
   const fetchLivraisons = async () => {
     try {
       setLoading(true);
@@ -71,9 +77,8 @@ const LivraisonsList = () => {
     }
   };
 
-  // ==================== FONCTIONS DE GESTION DES DATES (CORRIGÉES) ====================
+  // ==================== FONCTIONS DE GESTION DES DATES ====================
 
-  // Fonction pour obtenir la date d'une livraison (sans manipulation de fuseau horaire)
   const getLivraisonDate = (livraison) => {
     let date = null;
     
@@ -90,25 +95,20 @@ const LivraisonsList = () => {
     return date;
   };
 
-  // Fonction pour créer une date locale à partir d'une chaîne YYYY-MM-DD
   const createLocalDate = (dateString) => {
     if (!dateString) return null;
     const [year, month, day] = dateString.split('-');
-    // Créer une date en utilisant le fuseau horaire local
     return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
   };
 
-  // Fonction pour obtenir la date de début d'un mois
   const getMonthStart = (year, month) => {
     return new Date(year, month, 1, 0, 0, 0, 0);
   };
 
-  // Fonction pour obtenir la date de fin d'un mois
   const getMonthEnd = (year, month) => {
     return new Date(year, month + 1, 0, 23, 59, 59, 999);
   };
 
-  // Fonction pour obtenir le nom français du mois
   const getFrenchMonthName = (month) => {
     const months = [
       'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
@@ -117,13 +117,11 @@ const LivraisonsList = () => {
     return months[month];
   };
 
-  // Fonction pour formater la date pour la recherche
   const formatDateForSearch = (livraison) => {
     const date = getLivraisonDate(livraison);
     return date.toLocaleDateString('fr-FR');
   };
 
-  // Fonction pour obtenir le nom complet du client
   const getClientFullName = (livraison) => {
     if (livraison.client) {
       const nom = livraison.client.nom || "";
@@ -148,7 +146,6 @@ const LivraisonsList = () => {
     return "Non spécifié";
   };
 
-  // Fonction pour obtenir le téléphone du client
   const getClientTelephone = (livraison) => {
     if (livraison.client?.telephone) {
       const phone = livraison.client.telephone.toString().trim();
@@ -168,7 +165,6 @@ const LivraisonsList = () => {
     return "Non spécifié";
   };
 
-  // Fonction pour obtenir le nom du destinataire
   const getDestinataireName = (livraison) => {
     if (livraison.destinataire) {
       const nom = livraison.destinataire.nom || "";
@@ -193,7 +189,6 @@ const LivraisonsList = () => {
     return "Non spécifié";
   };
 
-  // Fonction pour obtenir le téléphone du destinataire
   const getDestinataireTelephone = (livraison) => {
     if (livraison.destinataire?.telephone) {
       const phone = livraison.destinataire.telephone.toString().trim();
@@ -213,7 +208,6 @@ const LivraisonsList = () => {
     return "Non spécifié";
   };
 
-  // Fonction pour obtenir le nom français du statut
   const getStatusFrenchName = (status) => {
     const statusMap = {
       en_attente: "en attente",
@@ -252,17 +246,14 @@ const LivraisonsList = () => {
     return searchRecursive(obj);
   };
 
-  // Fonction principale pour appliquer les filtres (VERSION CORRIGÉE)
   const applyFilters = () => {
     try {
       let filtered = [...livraisons];
 
-      // 1. Filtrer par statut
       if (statusFilter) {
         filtered = filtered.filter((livraison) => livraison.status === statusFilter);
       }
 
-      // 2. Filtrer par mois (priorité au filtre mois s'il est actif)
       if (monthFilter) {
         const [year, month] = monthFilter.split('-');
         const targetYear = parseInt(year);
@@ -273,11 +264,9 @@ const LivraisonsList = () => {
         
         filtered = filtered.filter((livraison) => {
           const livraisonDate = getLivraisonDate(livraison);
-          // Comparer les dates complètes avec heures
           return livraisonDate >= startDate && livraisonDate <= endDate;
         });
       } 
-      // 3. Filtrer par plage de dates (uniquement si pas de filtre mois)
       else if (startDateFilter || endDateFilter) {
         let startDate = null;
         let endDate = null;
@@ -314,7 +303,6 @@ const LivraisonsList = () => {
         });
       }
 
-      // 4. Filtrer par recherche textuelle
       if (searchTerm.trim()) {
         const searchLower = searchTerm.toLowerCase().trim();
 
@@ -335,6 +323,7 @@ const LivraisonsList = () => {
             livraison.demande_livraison?.colis?.colis_label,
             getStatusFrenchName(livraison.status),
             formatDateForSearch(livraison),
+            isDepotClient(livraison) ? "dépôt client" : "",
           ]
             .filter(Boolean)
             .map(String);
@@ -366,6 +355,7 @@ const LivraisonsList = () => {
       livre: data.filter((l) => l.status === "livre").length,
       annule: data.filter((l) => l.status === "annule").length,
       en_cours: data.filter((l) => !["en_attente", "livre", "annule"].includes(l.status)).length,
+      depot_client: data.filter((l) => isDepotClient(l)).length,
     };
     setStats(stats);
   };
@@ -452,7 +442,6 @@ const LivraisonsList = () => {
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
     
-    // Générer les 12 derniers mois
     for (let i = 0; i < 12; i++) {
       const date = new Date(currentYear, currentDate.getMonth() - i, 1);
       const year = date.getFullYear();
@@ -501,6 +490,13 @@ const LivraisonsList = () => {
       textColor: "text-red-500",
       description: "Livraisons annulées",
     },
+    {
+      title: "Dépôt client",
+      value: stats.depot_client,
+      icon: FaBox,
+      textColor: "text-blue-500",
+      description: "Colis déposés par le client",
+    },
   ];
 
   return (
@@ -515,6 +511,10 @@ const LivraisonsList = () => {
             <p className="text-gray-600">
               Liste de toutes les livraisons - Recherche par ID, wilaya,
               commune, client, téléphone, destinataire, etc.
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                <FaBox className="w-3 h-3 mr-1" />
+                Dépôt client = colis déposé directement
+              </span>
             </p>
           </div>
           <div className="flex gap-2 mt-4 md:mt-0">
@@ -535,7 +535,7 @@ const LivraisonsList = () => {
         <h2 className="mb-4 text-lg font-semibold text-gray-900">
           Aperçu global
         </h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
           {statCards.map((stat, index) => (
             <div
               key={index}
@@ -567,15 +567,13 @@ const LivraisonsList = () => {
       {/* Section de filtrage */}
       <div className="p-4 mb-6 bg-white rounded-lg shadow-sm">
         <div className="flex flex-col gap-4">
-          {/* Première ligne : Filtres principaux */}
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-5">
-            {/* Barre de recherche */}
             <div className="lg:col-span-2">
               <div className="relative">
                 <MagnifyingGlassIcon className="absolute w-5 h-5 text-gray-400 transform -translate-y-1/2 left-3 top-1/2" />
                 <input
                   type="text"
-                  placeholder="Rechercher... (ID, client, téléphone, wilaya, commune, destinataire, etc.)"
+                  placeholder="Rechercher... (ID, client, téléphone, wilaya, commune, destinataire, 'dépôt client', etc.)"
                   className="w-full pl-10 input-field"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -583,7 +581,6 @@ const LivraisonsList = () => {
               </div>
             </div>
 
-            {/* Filtre par statut */}
             <div>
               <select
                 className="w-full input-field"
@@ -601,14 +598,12 @@ const LivraisonsList = () => {
               </select>
             </div>
 
-            {/* Filtre par mois */}
             <div>
               <select
                 className="w-full input-field"
                 value={monthFilter}
                 onChange={(e) => {
                   setMonthFilter(e.target.value);
-                  // Réinitialiser les filtres de dates quand on choisit un mois
                   if (e.target.value) {
                     setStartDateFilter("");
                     setEndDateFilter("");
@@ -624,7 +619,6 @@ const LivraisonsList = () => {
               </select>
             </div>
 
-            {/* Filtre par période - n'afficher que si aucun mois n'est sélectionné */}
             {!monthFilter && (
               <>
                 <div className="relative">
@@ -652,7 +646,6 @@ const LivraisonsList = () => {
             )}
           </div>
 
-          {/* Boutons d'action */}
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex gap-2">
               {hasActiveFilters && (
@@ -678,7 +671,6 @@ const LivraisonsList = () => {
             </div>
           </div>
 
-          {/* Indicateur de résultats */}
           {hasActiveFilters && (
             <div className="p-3 text-sm bg-blue-50 border border-blue-200 rounded-md">
               <p className="font-medium text-blue-800">
