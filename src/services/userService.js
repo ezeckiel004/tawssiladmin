@@ -21,7 +21,6 @@ const userService = {
         return usersCache.filter(user => user.role !== "client_destinataire");
       }
 
-      // Utiliser la route admin pour récupérer tous les utilisateurs
       const response = await api.get('/admin/users');
       const responseData = response.data;
 
@@ -36,7 +35,6 @@ const userService = {
         users = responseData || [];
       }
 
-      // Filtrer pour exclure les client_destinataire
       users = users.filter(user => user.role !== "client_destinataire");
       
       usersCache = users;
@@ -46,7 +44,6 @@ const userService = {
     } catch (error) {
       console.error("Erreur getAllUsers:", error);
       
-      // Fallback sur l'ancienne route si la nouvelle échoue
       try {
         const fallbackResponse = await api.get('/all-users');
         const fallbackData = fallbackResponse.data;
@@ -73,7 +70,6 @@ const userService = {
    */
   getUserById: async (userId, silent = true) => {
     try {
-      // Utiliser la route admin
       const response = await api.get(`/admin/users/${userId}`);
       const responseData = response.data;
 
@@ -107,7 +103,6 @@ const userService = {
       
       console.log("Données envoyées au serveur:", userData);
 
-      // Utiliser la route admin pour créer un utilisateur
       const response = await api.post('/admin/users', userData);
       
       usersCache = null;
@@ -136,7 +131,6 @@ const userService = {
    */
   updateUser: async (userId, userData) => {
     try {
-      // Nettoyer les données (supprimer les champs vides)
       const cleanData = Object.fromEntries(
         Object.entries(userData).filter(([_, v]) => v !== '' && v !== null && v !== undefined)
       );
@@ -145,7 +139,6 @@ const userService = {
         throw new Error("Le rôle 'client_destinataire' n'est pas autorisé");
       }
 
-      // Utiliser la route admin pour la mise à jour
       const response = await api.put(`/admin/users/${userId}`, cleanData);
       
       usersCache = null;
@@ -177,7 +170,6 @@ const userService = {
    */
   deleteUser: async (userId) => {
     try {
-      // Utiliser la route admin pour suppression
       const response = await api.delete(`/admin/users/${userId}`);
       
       usersCache = null;
@@ -200,7 +192,6 @@ const userService = {
    */
   deleteUserForce: async (userId) => {
     try {
-      // Utiliser la route admin pour suppression forcée
       const response = await api.delete(`/admin/users/${userId}/force-delete`);
       
       usersCache = null;
@@ -222,11 +213,72 @@ const userService = {
   },
 
   /**
-   * Activer/désactiver un utilisateur
+   * Suspendre ou réactiver un utilisateur (Admin seulement)
+   * Utilise le champ actif (false = suspendu, true = actif)
+   */
+  suspendreUtilisateur: async (userId) => {
+    try {
+      const response = await api.post(`/admin/users/${userId}/suspendre`);
+      
+      usersCache = null;
+      statsCache = null;
+      
+      return response.data;
+    } catch (error) {
+      console.error("Erreur suspendreUtilisateur:", error);
+      if (error.response?.status === 403) {
+        throw new Error('Accès non autorisé. Admin requis.');
+      }
+      if (error.response?.status === 404) {
+        throw new Error('Utilisateur non trouvé');
+      }
+      if (error.response?.status === 400) {
+        throw new Error(error.response?.data?.message || 'Impossible de suspendre cet utilisateur');
+      }
+      throw new Error(error.response?.data?.message || 'Erreur lors de la suspension/réactivation');
+    }
+  },
+
+  /**
+   * Vérifier si un utilisateur est suspendu
+   */
+  checkSuspended: async (userId) => {
+    try {
+      const response = await api.get(`/admin/users/${userId}/suspended-check`);
+      return response.data;
+    } catch (error) {
+      console.error("Erreur checkSuspended:", error);
+      return { success: true, data: { is_suspended: false } };
+    }
+  },
+
+  /**
+   * Récupérer tous les utilisateurs suspendus
+   */
+  getSuspendedUsers: async () => {
+    try {
+      const response = await api.get('/admin/users/suspended');
+      const responseData = response.data;
+      
+      let users = [];
+      if (responseData?.success && Array.isArray(responseData.data)) {
+        users = responseData.data;
+      } else if (Array.isArray(responseData)) {
+        users = responseData;
+      }
+      
+      return users.filter(user => user.role !== "client_destinataire");
+    } catch (error) {
+      console.error("Erreur getSuspendedUsers:", error);
+      return [];
+    }
+  },
+
+  /**
+   * Activer/désactiver un utilisateur (toggle actif)
    */
   updateUserStatus: async (userId) => {
     try {
-      // Utiliser la route admin pour activer/désactiver
       const response = await api.patch(`/admin/users/${userId}/toggle-activation`);
 
       usersCache = null;
@@ -258,7 +310,6 @@ const userService = {
         return statsCache;
       }
 
-      // Utiliser la route admin pour les statistiques
       const response = await api.get('/admin/users/stats');
       const responseData = response.data;
 
@@ -297,6 +348,7 @@ const userService = {
         total_gestionnaires: users.filter(u => u.role === 'gestionnaire').length || 0,
         active_users: users.filter(u => u.actif).length || 0,
         inactive_users: users.filter(u => !u.actif).length || 0,
+        suspended_users: users.filter(u => !u.actif).length || 0,
         message: 'Statistiques calculées localement'
       };
     } catch {
@@ -316,6 +368,7 @@ const userService = {
     total_gestionnaires: 0,
     active_users: 0,
     inactive_users: 0,
+    suspended_users: 0,
     message: 'Statistiques par défaut'
   }),
 
@@ -365,13 +418,13 @@ const userService = {
   /**
    * Rechercher des utilisateurs
    */
-  searchUsers: async (query, role = null) => {
+  searchUsers: async (query, role = null, status = null) => {
     try {
       const params = new URLSearchParams();
       if (query) params.append('q', query);
       if (role) params.append('role', role);
+      if (status) params.append('status', status);
 
-      // Utiliser la route admin pour la recherche
       const response = await api.get(`/admin/users/search?${params.toString()}`);
       const responseData = response.data;
 
@@ -390,7 +443,6 @@ const userService = {
     } catch (error) {
       console.error("Erreur searchUsers:", error);
       
-      // Fallback: recherche locale
       try {
         const allUsers = await userService.getAllUsers();
         let filtered = allUsers;
@@ -407,6 +459,14 @@ const userService = {
 
         if (role) {
           filtered = filtered.filter(user => user.role === role);
+        }
+
+        if (status === 'suspended') {
+          filtered = filtered.filter(user => !user.actif);
+        } else if (status === 'active') {
+          filtered = filtered.filter(user => user.actif);
+        } else if (status === 'inactive') {
+          filtered = filtered.filter(user => !user.actif);
         }
 
         return {
@@ -431,6 +491,7 @@ const userService = {
       
       if (params.search) queryParams.append('search', params.search);
       if (params.role) queryParams.append('role', params.role);
+      if (params.status) queryParams.append('status', params.status);
       if (params.format) queryParams.append('format', params.format);
       if (params.columns && params.columns.length > 0) {
         params.columns.forEach(col => queryParams.append('columns[]', col));
@@ -438,7 +499,6 @@ const userService = {
 
       console.log('Export avec paramètres:', params);
 
-      // Utiliser la route admin d'export
       const response = await api.get(`/admin/users/export/excel?${queryParams.toString()}`, {
         responseType: 'blob'
       });
@@ -462,11 +522,11 @@ const userService = {
       
       if (params.search) queryParams.append('search', params.search);
       if (params.role) queryParams.append('role', params.role);
+      if (params.status) queryParams.append('status', params.status);
       if (params.columns && params.columns.length > 0) {
         params.columns.forEach(col => queryParams.append('columns[]', col));
       }
 
-      // Utiliser la route admin d'export avec format=pdf
       const response = await api.get(`/admin/users/export/excel?${queryParams.toString()}&format=pdf`, {
         responseType: 'blob'
       });
@@ -596,14 +656,17 @@ const userService = {
   formatUserForDisplay: (user) => {
     if (!user) return null;
 
+    const isSuspended = !user.actif;
+
     return {
       ...user,
       fullName: `${user.prenom || ''} ${user.nom || ''}`.trim(),
       formattedRole: user.role ? userService.getRoleLabel(user.role) : 'Non défini',
-      formattedStatus: user.actif ? 'Actif' : 'Inactif',
-      statusColor: user.actif ? 'green' : 'red',
+      formattedStatus: isSuspended ? 'Suspendu' : (user.actif ? 'Actif' : 'Inactif'),
+      statusColor: isSuspended ? 'orange' : (user.actif ? 'green' : 'red'),
       roleColor: userService.getRoleColor(user.role),
       formattedDate: user.created_at ? new Date(user.created_at).toLocaleDateString('fr-FR') : 'Non défini',
+      isSuspended: isSuspended,
     };
   },
 
@@ -673,8 +736,9 @@ const userService = {
    * Obtenir la liste des statuts disponibles
    */
   getAvailableStatuses: () => [
-    { value: true, label: 'Actif', color: 'green' },
-    { value: false, label: 'Inactif', color: 'red' }
+    { value: 'active', label: 'Actif', color: 'green' },
+    { value: 'inactive', label: 'Inactif', color: 'red' },
+    { value: 'suspended', label: 'Suspendu', color: 'orange' }
   ],
 
   /**

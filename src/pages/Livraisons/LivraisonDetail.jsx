@@ -32,9 +32,48 @@ import {
   FaCity,
   FaSignOutAlt,
   FaSignInAlt,
+  FaCreditCard,
+  FaExchangeAlt,
+  FaHome,
+  FaStore,
+  FaCopy,
+  FaCalculator,
 } from "react-icons/fa";
 import livraisonService from "../../services/livraisonService";
 import livreurService from "../../services/livreurService";
+
+const PAYMENT_STATUSES = [
+    { value: 'pending', label: 'En attente', color: 'bg-yellow-100 text-yellow-800', icon: FaClock },
+    { value: 'available', label: 'Disponible', color: 'bg-blue-100 text-blue-800', icon: FaMoneyBillWave },
+    { value: 'in_transit', label: 'En transit', color: 'bg-purple-100 text-purple-800', icon: FaRoute },
+    { value: 'paid', label: 'Payé', color: 'bg-green-100 text-green-800', icon: FaCheckCircle }
+];
+
+const TYPE_LIVRAISON_LABELS = {
+  Livraison: { label: "Livraison", color: "bg-blue-100 text-blue-800", icon: FaTruck },
+  Échange: { label: "Échange", color: "bg-purple-100 text-purple-800", icon: FaExchangeAlt },
+  "Pick-up": { label: "Pick-up", color: "bg-green-100 text-green-800", icon: FaBox },
+};
+
+const PRESTATION_LABELS = {
+  "A domicile": { label: "À domicile", color: "bg-green-100 text-green-800", icon: FaHome },
+  "Stop Desk": { label: "Stop Desk", color: "bg-orange-100 text-orange-800", icon: FaStore },
+};
+
+const copyToClipboard = (text, label) => {
+  if (!text) return;
+  navigator.clipboard.writeText(text);
+  toast.success(`${label} copié !`);
+};
+
+const formatPrice = (price) => {
+  if (price === undefined || price === null) return "0 DA";
+  const absPrice = Math.abs(price);
+  return new Intl.NumberFormat('fr-DZ', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  }).format(absPrice) + " DA";
+};
 
 const extractWilayaFromAddress = (address) => {
   if (!address || typeof address !== "string") return null;
@@ -62,7 +101,6 @@ const extractWilayaFromAddress = (address) => {
   return null;
 };
 
-// Composant d'alerte pour dépôt client
 const DepotClientAlert = ({ livraison, onPasserEnTransit, isAdmin }) => {
   const isDepotClient = livraison?.demande_livraison?.depose_au_depot === true;
   const status = livraison?.status;
@@ -110,6 +148,63 @@ const DepotClientAlert = ({ livraison, onPasserEnTransit, isAdmin }) => {
   );
 };
 
+const PriceSummary = ({ livraison }) => {
+  const prixColis = livraison?.prix_colis || 0;
+  const prixLivraison = livraison?.prix_livraison || 0;
+  const isLivraisonGratuite = livraison?.livraison_gratuite || false;
+  const total = livraison?.total || 0;
+  
+  return (
+    <div className="p-6 bg-white shadow-sm rounded-xl">
+      <h2 className="flex items-center gap-2 mb-4 text-lg font-semibold text-gray-900">
+        <FaCalculator className="text-primary-600" />
+        Récapitulatif des prix
+      </h2>
+      
+      <div className="space-y-3">
+        <div className="flex justify-between items-center p-3 rounded-lg bg-gray-50">
+          <div className="flex items-center gap-2">
+            <FaBox className="text-purple-500" />
+            <span className="text-gray-600">Prix du colis</span>
+          </div>
+          <span className="font-semibold text-gray-900">{formatPrice(prixColis)}</span>
+        </div>
+        
+        <div className="flex justify-between items-center p-3 rounded-lg bg-gray-50">
+          <div className="flex items-center gap-2">
+            <FaTruck className="text-green-500" />
+            <span className="text-gray-600">Prix de la livraison</span>
+          </div>
+          {isLivraisonGratuite ? (
+            <span className="font-semibold text-red-500">- {formatPrice(prixLivraison)}</span>
+          ) : (
+            <span className="font-semibold text-green-700">{formatPrice(prixLivraison)}</span>
+          )}
+        </div>
+        
+        <div className="flex justify-between items-center p-3 rounded-lg bg-primary-50 border border-primary-200">
+          <div className="flex items-center gap-2">
+            <FaCalculator className="text-primary-600" />
+            <span className="font-semibold text-gray-900">Total à payer</span>
+          </div>
+          <div className="text-right">
+            <span className="text-xl font-bold text-primary-700">{formatPrice(Math.abs(total))}</span>
+            {total < 0 && (
+              <p className="text-xs text-green-600 mt-1">(Crédit client)</p>
+            )}
+          </div>
+        </div>
+        
+        {isLivraisonGratuite && (
+          <div className="mt-2 p-2 text-xs text-green-700 bg-green-50 rounded-lg text-center">
+            🎉 Livraison gratuite - Le prix de la livraison est déduit du total
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const LivraisonDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -120,6 +215,8 @@ const LivraisonDetail = () => {
   const [assignType, setAssignType] = useState(null);
   const [selectedLivreur, setSelectedLivreur] = useState("");
   const [isPrinting, setIsPrinting] = useState(false);
+  const [showPaymentStatusModal, setShowPaymentStatusModal] = useState(false);
+  const [selectedPaymentStatus, setSelectedPaymentStatus] = useState("");
 
   useEffect(() => {
     fetchLivraison();
@@ -156,6 +253,23 @@ const LivraisonDetail = () => {
       fetchLivraison();
     } catch (error) {
       toast.error("Erreur lors de la mise à jour du statut");
+    }
+  };
+
+  const updatePaymentStatus = async () => {
+    if (!selectedPaymentStatus) {
+      toast.error("Veuillez sélectionner un statut de paiement");
+      return;
+    }
+
+    try {
+      await livraisonService.smartUpdatePaymentStatus(id, selectedPaymentStatus);
+      toast.success("Statut de paiement mis à jour avec succès");
+      setShowPaymentStatusModal(false);
+      setSelectedPaymentStatus("");
+      fetchLivraison();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Erreur lors de la mise à jour du statut de paiement");
     }
   };
 
@@ -350,6 +464,11 @@ const LivraisonDetail = () => {
     return statusConfig[status] || { icon: FaExclamationTriangle, color: "text-gray-600 bg-gray-100", label: status.replace(/_/g, " "), description: "Statut inconnu" };
   };
 
+  const getPaymentStatusInfo = (paymentStatus) => {
+    const config = PAYMENT_STATUSES.find(s => s.value === paymentStatus) || PAYMENT_STATUSES[0];
+    return config;
+  };
+
   const canAssignLivreur = (livraison, type) => {
     if (!livraison) return false;
     if (livraison.status === "annule" || livraison.status === "livre") return false;
@@ -386,6 +505,52 @@ const LivraisonDetail = () => {
   const isAdmin = livraisonService.isAdmin();
   const isDepotClient = livraisonService.isDepotClient(livraison);
 
+  const getClientName = () => {
+    if (livraison?.client?.user) {
+      return `${livraison.client.user.prenom || ''} ${livraison.client.user.nom || ''}`.trim();
+    }
+    if (livraison?.client) {
+      return `${livraison.client.prenom || ''} ${livraison.client.nom || ''}`.trim();
+    }
+    if (livraison?.demande_livraison?.client?.user) {
+      return `${livraison.demande_livraison.client.user.prenom || ''} ${livraison.demande_livraison.client.user.nom || ''}`.trim();
+    }
+    return "Non spécifié";
+  };
+
+  const getClientPhone = () => {
+    if (livraison?.client?.user?.telephone) {
+      return livraison.client.user.telephone;
+    }
+    if (livraison?.client?.telephone) {
+      return livraison.client.telephone;
+    }
+    if (livraison?.demande_livraison?.client?.user?.telephone) {
+      return livraison.demande_livraison.client.user.telephone;
+    }
+    return null;
+  };
+
+  const getDestinataireName = () => {
+    if (livraison?.demande_livraison?.destinataire?.user) {
+      return `${livraison.demande_livraison.destinataire.user.prenom || ''} ${livraison.demande_livraison.destinataire.user.nom || ''}`.trim();
+    }
+    if (livraison?.destinataire?.user) {
+      return `${livraison.destinataire.user.prenom || ''} ${livraison.destinataire.user.nom || ''}`.trim();
+    }
+    return "Non spécifié";
+  };
+
+  const getDestinatairePhone = () => {
+    if (livraison?.demande_livraison?.destinataire?.user?.telephone) {
+      return livraison.demande_livraison.destinataire.user.telephone;
+    }
+    if (livraison?.destinataire?.user?.telephone) {
+      return livraison.destinataire.user.telephone;
+    }
+    return null;
+  };
+
   const wilayaDepart = livraison?.demande_livraison?.addresse_depot ? extractWilayaFromAddress(livraison.demande_livraison.addresse_depot) : null;
   const wilayaArrivee = livraison?.demande_livraison?.addresse_delivery ? extractWilayaFromAddress(livraison.demande_livraison.addresse_delivery) : null;
   const wilaya = livraison?.demande_livraison?.wilaya;
@@ -418,7 +583,6 @@ const LivraisonDetail = () => {
 
   return (
     <div className="space-y-6">
-      {/* En-tête */}
       <div className="flex items-start justify-between">
         <div>
           <button onClick={() => navigate("/livraisons")} className="flex items-center mb-4 text-primary-600 hover:text-primary-800">
@@ -431,6 +595,18 @@ const LivraisonDetail = () => {
               <statusInfo.icon className="w-4 h-4" />
               {statusInfo.label}
             </div>
+            <div className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2 ${getPaymentStatusInfo(livraison.payment_status).color}`}>
+              {React.createElement(getPaymentStatusInfo(livraison.payment_status).icon, { className: "w-4 h-4" })}
+              Paiement: {getPaymentStatusInfo(livraison.payment_status).label}
+            </div>
+            
+            {livraison?.livraison_gratuite && (
+              <div className="flex items-center gap-2 px-3 py-1 text-sm font-medium text-green-700 bg-green-100 rounded-full">
+                <FaMoneyBillWave className="w-3 h-3" />
+                Livraison gratuite
+              </div>
+            )}
+            
             <div className="flex items-center gap-2 px-3 py-1 text-sm font-medium text-gray-700 bg-gray-100 rounded-full">
               <FaQrcode className="w-4 h-4" />
               PIN: {livraison.code_pin}
@@ -464,6 +640,18 @@ const LivraisonDetail = () => {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          {isAdmin && (
+            <button 
+              onClick={() => {
+                setSelectedPaymentStatus(livraison.payment_status);
+                setShowPaymentStatusModal(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2 transition-colors border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              <FaCreditCard className="w-4 h-4" />
+              Changer statut paiement
+            </button>
+          )}
           <button onClick={handleDownloadPDF} disabled={isPrinting} className="flex items-center gap-2 px-4 py-2 text-white transition-colors bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50">
             <FaDownload /> {isPrinting ? "Génération..." : "Télécharger PDF"}
           </button>
@@ -473,17 +661,16 @@ const LivraisonDetail = () => {
         </div>
       </div>
 
-      {/* Alerte dépôt client */}
       <DepotClientAlert 
         livraison={livraison}
         onPasserEnTransit={handlePasserEnTransit}
         isAdmin={isAdmin}
       />
 
+      <PriceSummary livraison={livraison} />
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Colonne principale */}
         <div className="space-y-6 lg:col-span-2">
-          {/* Section Attribution livreurs */}
           {isAdmin && !["annule", "livre"].includes(livraison.status) && (
             <div className="p-6 bg-white shadow-sm rounded-xl">
               <h2 className="flex items-center gap-2 mb-4 text-lg font-semibold text-gray-900">
@@ -491,7 +678,6 @@ const LivraisonDetail = () => {
               </h2>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {/* Livreur ramasseur - caché si dépôt client */}
                 {!isDepotClient && (
                   <div className="p-4 rounded-lg bg-blue-50">
                     <div className="flex items-center justify-between mb-3">
@@ -514,13 +700,22 @@ const LivraisonDetail = () => {
                     </div>
                     {livraison.livreur_ramasseur?.user?.telephone && (
                       <div className="text-sm text-gray-600">
-                        <div className="flex items-center gap-2"><FaPhone className="w-3 h-3" />{livraison.livreur_ramasseur.user.telephone}</div>
+                        <div className="flex items-center gap-2">
+                          <FaPhone className="w-3 h-3" />
+                          {livraison.livreur_ramasseur.user.telephone}
+                          <button
+                            onClick={() => copyToClipboard(livraison.livreur_ramasseur.user.telephone, "Téléphone livreur")}
+                            className="ml-2 text-gray-400 hover:text-gray-600"
+                            title="Copier"
+                          >
+                            <FaCopy className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Livreur distributeur */}
                 <div className="p-4 rounded-lg bg-green-50">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
@@ -542,39 +737,24 @@ const LivraisonDetail = () => {
                   </div>
                   {livraison.livreur_distributeur?.user?.telephone && (
                     <div className="text-sm text-gray-600">
-                      <div className="flex items-center gap-2"><FaPhone className="w-3 h-3" />{livraison.livreur_distributeur.user.telephone}</div>
+                      <div className="flex items-center gap-2">
+                        <FaPhone className="w-3 h-3" />
+                        {livraison.livreur_distributeur.user.telephone}
+                        <button
+                          onClick={() => copyToClipboard(livraison.livreur_distributeur.user.telephone, "Téléphone livreur")}
+                          className="ml-2 text-gray-400 hover:text-gray-600"
+                          title="Copier"
+                        >
+                          <FaCopy className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
-
-              {/* Info logique d'attribution */}
-              {/* <div className="p-3 mt-4 text-sm bg-gray-50 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <FaInfoCircle className="flex-shrink-0 w-4 h-4 mt-0.5 text-gray-500" />
-                  <div>
-                    <p className="font-medium text-gray-700">Logique d'attribution :</p>
-                    <ul className="mt-1 ml-4 text-gray-600 list-disc">
-                      {isDepotClient ? (
-                        <>
-                          <li>📦 <strong>Dépôt client</strong> : Pas de ramasseur nécessaire</li>
-                          <li>🚚 Distributeur : attribuable si statut = "en_attente" ou "en_transit"</li>
-                          <li>⚡ Possibilité de passer directement en transit</li>
-                        </>
-                      ) : (
-                        <>
-                          <li>🚚 Ramasseur : attribuable si statut ≠ "ramasse"</li>
-                          <li>📦 Distributeur : attribuable si statut = "en_transit"</li>
-                        </>
-                      )}
-                    </ul>
-                  </div>
-                </div>
-              </div> */}
             </div>
           )}
 
-          {/* Section Statut */}
           <div className="p-6 bg-white shadow-sm rounded-xl">
             <h2 className="flex items-center gap-2 mb-4 text-lg font-semibold text-gray-900"><FaSyncAlt /> Gestion du statut</h2>
 
@@ -612,21 +792,54 @@ const LivraisonDetail = () => {
             )}
           </div>
 
-          {/* Informations du colis */}
           <div className="p-6 bg-white shadow-sm rounded-xl">
             <h2 className="flex items-center gap-2 mb-4 text-lg font-semibold text-gray-900"><FaBox className="text-blue-600" /> Informations du colis</h2>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="p-3 rounded-lg bg-gray-50"><div className="flex items-center gap-2 mb-1"><FaBarcode className="text-gray-400" /><span className="text-sm font-medium text-gray-600">Référence</span></div><p className="font-semibold text-gray-900">{livraison.demande_livraison?.colis?.colis_label || "N/A"}</p></div>
-              <div className="p-3 rounded-lg bg-gray-50"><div className="flex items-center gap-2 mb-1"><FaTag className="text-gray-400" /><span className="text-sm font-medium text-gray-600">Type</span></div><p className="font-semibold text-gray-900">{livraison.demande_livraison?.colis?.colis_type || "Standard"}</p></div>
-              <div className="p-3 rounded-lg bg-gray-50"><div className="flex items-center gap-2 mb-1"><FaWeightHanging className="text-gray-400" /><span className="text-sm font-medium text-gray-600">Poids</span></div><p className="font-semibold text-gray-900">{livraison.demande_livraison?.colis?.poids ? `${livraison.demande_livraison.colis.poids} kg` : "N/A"}</p></div>
               <div className="p-3 rounded-lg bg-gray-50">
-                <div className="flex items-center gap-2 mb-1"><FaMoneyBillWave className="text-gray-400" /><span className="text-sm font-medium text-gray-600">Prix</span></div>
-                <div className="space-y-1">
-                  {livraison.demande_livraison?.colis?.colis_prix && <p className="font-semibold text-purple-700">Colis: {livraison.demande_livraison.colis.colis_prix} DA</p>}
-                  {livraison.demande_livraison?.prix && <p className="font-semibold text-green-700">Livraison: {livraison.demande_livraison.prix} DA</p>}
-                  {!livraison.demande_livraison?.colis?.colis_prix && !livraison.demande_livraison?.prix && <p className="font-semibold text-gray-900">N/A</p>}
-                </div>
+                <div className="flex items-center gap-2 mb-1"><FaBarcode className="text-gray-400" /><span className="text-sm font-medium text-gray-600">Référence</span></div>
+                <p className="font-semibold text-gray-900">{livraison.demande_livraison?.colis?.colis_label || "N/A"}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-gray-50">
+                <div className="flex items-center gap-2 mb-1"><FaTag className="text-gray-400" /><span className="text-sm font-medium text-gray-600">Type</span></div>
+                <p className="font-semibold text-gray-900">{livraison.demande_livraison?.colis?.colis_type || "Standard"}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-gray-50">
+                <div className="flex items-center gap-2 mb-1"><FaWeightHanging className="text-gray-400" /><span className="text-sm font-medium text-gray-600">Poids</span></div>
+                <p className="font-semibold text-gray-900">{livraison.demande_livraison?.colis?.poids ? `${livraison.demande_livraison.colis.poids} kg` : "N/A"}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-gray-50">
+                <div className="flex items-center gap-2 mb-1"><FaMoneyBillWave className="text-gray-400" /><span className="text-sm font-medium text-gray-600">Prix du colis</span></div>
+                <p className="font-semibold text-purple-700">{formatPrice(livraison?.prix_colis || 0)}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <div className="p-3 rounded-lg bg-gray-50">
+                <div className="flex items-center gap-2 mb-1"><FaTruck className="text-gray-400" /><span className="text-sm font-medium text-gray-600">Type de livraison</span></div>
+                {(() => {
+                  const config = TYPE_LIVRAISON_LABELS[livraison.demande_livraison?.type_livraison] || TYPE_LIVRAISON_LABELS.Livraison;
+                  const Icon = config.icon;
+                  return (
+                    <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${config.color}`}>
+                      <Icon className="w-3 h-3" />
+                      {config.label}
+                    </span>
+                  );
+                })()}
+              </div>
+              <div className="p-3 rounded-lg bg-gray-50">
+                <div className="flex items-center gap-2 mb-1"><FaBox className="text-gray-400" /><span className="text-sm font-medium text-gray-600">Prestation</span></div>
+                {(() => {
+                  const config = PRESTATION_LABELS[livraison.demande_livraison?.prestation] || PRESTATION_LABELS["A domicile"];
+                  const Icon = config.icon;
+                  return (
+                    <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${config.color}`}>
+                      <Icon className="w-3 h-3" />
+                      {config.label}
+                    </span>
+                  );
+                })()}
               </div>
             </div>
 
@@ -639,57 +852,190 @@ const LivraisonDetail = () => {
           </div>
         </div>
 
-        {/* Colonne latérale */}
         <div className="space-y-6">
-          {/* Dates importantes */}
           <div className="p-6 bg-white shadow-sm rounded-xl">
-            <h3 className="mb-4 text-lg font-semibold text-gray-900">Dates importantes</h3>
+            <h3 className="mb-4 text-lg font-semibold text-gray-900">Client & Destinataire</h3>
             <div className="space-y-4">
-              <div className="p-3 rounded-lg bg-gray-50"><div className="flex items-center gap-2 mb-1"><FaCalendarAlt className="text-gray-400" /><span className="text-sm font-medium text-gray-600">Date de création</span></div><p className="font-semibold text-gray-900">{formatDate(livraison.created_at)}</p></div>
-              {livraison.date_ramassage && (<div className="p-3 rounded-lg bg-blue-50"><div className="flex items-center gap-2 mb-1"><FaCalendarAlt className="text-blue-400" /><span className="text-sm font-medium text-blue-600">Date de ramassage</span></div><p className="font-semibold text-gray-900">{formatDate(livraison.date_ramassage)}</p></div>)}
-              {livraison.date_livraison && (<div className="p-3 rounded-lg bg-green-50"><div className="flex items-center gap-2 mb-1"><FaCalendarAlt className="text-green-400" /><span className="text-sm font-medium text-green-600">Date de livraison</span></div><p className="font-semibold text-gray-900">{formatDate(livraison.date_livraison)}</p></div>)}
+              <div className="p-3 rounded-lg bg-blue-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FaUser className="w-4 h-4 text-blue-600" />
+                    <span className="font-medium text-gray-900">Client</span>
+                  </div>
+                  <button
+                    onClick={() => copyToClipboard(getClientPhone(), "Téléphone client")}
+                    className="text-xs text-blue-600 hover:text-blue-800"
+                    title="Copier le numéro"
+                  >
+                    <FaCopy className="inline mr-1 w-3 h-3" /> Copier
+                  </button>
+                </div>
+                <p className="mt-1 font-semibold text-gray-900">{getClientName()}</p>
+                {getClientPhone() && (
+                  <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
+                    <FaPhone className="w-3 h-3" />
+                    {getClientPhone()}
+                  </div>
+                )}
+              </div>
+              
+              <div className="p-3 rounded-lg bg-green-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FaUser className="w-4 h-4 text-green-600" />
+                    <span className="font-medium text-gray-900">Destinataire</span>
+                  </div>
+                  <button
+                    onClick={() => copyToClipboard(getDestinatairePhone(), "Téléphone destinataire")}
+                    className="text-xs text-green-600 hover:text-green-800"
+                    title="Copier le numéro"
+                  >
+                    <FaCopy className="inline mr-1 w-3 h-3" /> Copier
+                  </button>
+                </div>
+                <p className="mt-1 font-semibold text-gray-900">{getDestinataireName()}</p>
+                {getDestinatairePhone() && (
+                  <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
+                    <FaPhone className="w-3 h-3" />
+                    {getDestinatairePhone()}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Trajet et wilayas */}
+          <div className="p-6 bg-white shadow-sm rounded-xl">
+            <h3 className="mb-4 text-lg font-semibold text-gray-900">Dates importantes</h3>
+            <div className="space-y-4">
+              <div className="p-3 rounded-lg bg-gray-50">
+                <div className="flex items-center gap-2 mb-1"><FaCalendarAlt className="text-gray-400" /><span className="text-sm font-medium text-gray-600">Date de création</span></div>
+                <p className="font-semibold text-gray-900">{formatDate(livraison.created_at)}</p>
+              </div>
+              {livraison.date_ramassage && (
+                <div className="p-3 rounded-lg bg-blue-50">
+                  <div className="flex items-center gap-2 mb-1"><FaCalendarAlt className="text-blue-400" /><span className="text-sm font-medium text-blue-600">Date de ramassage</span></div>
+                  <p className="font-semibold text-gray-900">{formatDate(livraison.date_ramassage)}</p>
+                </div>
+              )}
+              {livraison.date_livraison && (
+                <div className="p-3 rounded-lg bg-green-50">
+                  <div className="flex items-center gap-2 mb-1"><FaCalendarAlt className="text-green-400" /><span className="text-sm font-medium text-green-600">Date de livraison</span></div>
+                  <p className="font-semibold text-gray-900">{formatDate(livraison.date_livraison)}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="p-6 bg-white shadow-sm rounded-xl">
             <h3 className="flex items-center gap-2 mb-4 text-lg font-semibold text-gray-900"><FaMapMarkerAlt className="text-primary-600" /> Trajet et wilayas</h3>
             <div className="space-y-4">
               <div className="p-4 rounded-lg bg-gradient-to-r from-blue-50 to-green-50 border border-gray-200">
-                <div className="flex items-center justify-between mb-4"><h4 className="font-medium text-gray-900">Trajet de livraison</h4><div className="flex items-center gap-2 text-sm text-gray-500"><FaSignOutAlt className="w-3 h-3 text-blue-600" /><FaArrowLeft className="w-3 h-3 text-gray-400" /><FaSignInAlt className="w-3 h-3 text-green-600" /></div></div>
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-medium text-gray-900">Trajet de livraison</h4>
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <FaSignOutAlt className="w-3 h-3 text-blue-600" />
+                    <FaArrowLeft className="w-3 h-3 text-gray-400" />
+                    <FaSignInAlt className="w-3 h-3 text-green-600" />
+                  </div>
+                </div>
                 <div className="space-y-3">
-                  {wilayaDepart && (<div className="flex items-center justify-between p-3 rounded-lg bg-blue-50"><div className="flex items-center gap-3"><div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full"><FaSignOutAlt className="w-4 h-4 text-blue-600" /></div><div><p className="text-sm font-medium text-gray-600">Wilaya de départ</p><p className="font-semibold text-gray-900">{wilayaDepart}</p></div></div><span className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded-full">Départ</span></div>)}
-                  {wilaya && (<div className="flex items-center justify-between p-3 rounded-lg bg-green-50"><div className="flex items-center gap-3"><div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-full"><FaSignInAlt className="w-4 h-4 text-green-600" /></div><div><p className="text-sm font-medium text-gray-600">Wilaya d'arrivée</p><p className="font-semibold text-gray-900">{wilaya}</p></div></div><span className="px-2 py-1 text-xs font-medium text-green-700 bg-green-100 rounded-full">Arrivée</span></div>)}
-                  {wilayaArrivee && wilayaArrivee !== wilaya && (<div className="p-3 rounded-lg bg-yellow-50"><div className="flex items-center gap-2 mb-2"><FaMapMarkerAlt className="w-4 h-4 text-yellow-600" /><h5 className="text-sm font-medium text-gray-700">Wilaya d'arrivée (adresse)</h5></div><p className="font-semibold text-gray-900">{wilayaArrivee}</p><p className="mt-1 text-xs text-gray-500">Extraite de l'adresse de livraison</p></div>)}
-                  {commune && (<div className="p-3 rounded-lg bg-purple-50"><div className="flex items-center gap-2 mb-2"><FaCity className="w-4 h-4 text-purple-600" /><h5 className="text-sm font-medium text-gray-700">Commune</h5></div><p className="font-semibold text-gray-900">{commune}</p></div>)}
+                  {wilayaDepart && (
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
+                          <FaSignOutAlt className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-600">Wilaya de départ</p>
+                          <p className="font-semibold text-gray-900">{wilayaDepart}</p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded-full">Départ</span>
+                    </div>
+                  )}
+                  {wilaya && (
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-green-50">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-full">
+                          <FaSignInAlt className="w-4 h-4 text-green-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-600">Wilaya d'arrivée</p>
+                          <p className="font-semibold text-gray-900">{wilaya}</p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-1 text-xs font-medium text-green-700 bg-green-100 rounded-full">Arrivée</span>
+                    </div>
+                  )}
+                  {wilayaArrivee && wilayaArrivee !== wilaya && (
+                    <div className="p-3 rounded-lg bg-yellow-50">
+                      <div className="flex items-center gap-2 mb-2">
+                        <FaMapMarkerAlt className="w-4 h-4 text-yellow-600" />
+                        <h5 className="text-sm font-medium text-gray-700">Wilaya d'arrivée (adresse)</h5>
+                      </div>
+                      <p className="font-semibold text-gray-900">{wilayaArrivee}</p>
+                      <p className="mt-1 text-xs text-gray-500">Extraite de l'adresse de livraison</p>
+                    </div>
+                  )}
+                  {commune && (
+                    <div className="p-3 rounded-lg bg-purple-50">
+                      <div className="flex items-center gap-2 mb-2">
+                        <FaCity className="w-4 h-4 text-purple-600" />
+                        <h5 className="text-sm font-medium text-gray-700">Commune</h5>
+                      </div>
+                      <p className="font-semibold text-gray-900">{commune}</p>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="space-y-4">
-                <div className="p-3 rounded-lg bg-blue-50"><div className="flex items-center gap-2 mb-2"><FaMapMarkerAlt className="w-4 h-4 text-blue-600" /><h4 className="font-medium text-gray-900">Point de départ{wilayaDepart && <span className="ml-2 text-sm font-normal text-blue-700">({wilayaDepart})</span>}</h4></div><p className="text-sm text-gray-700">{livraison.demande_livraison?.addresse_depot || "Non spécifiée"}</p></div>
-                <div className="p-3 rounded-lg bg-green-50"><div className="flex items-center gap-2 mb-2"><FaMapMarkerAlt className="w-4 h-4 text-green-600" /><h4 className="font-medium text-gray-900">Point de livraison{(wilaya || wilayaArrivee) && <span className="ml-2 text-sm font-normal text-green-700">({wilaya || wilayaArrivee})</span>}</h4></div><p className="text-sm text-gray-700">{livraison.demande_livraison?.addresse_delivery || "Non spécifiée"}</p></div>
+                <div className="p-3 rounded-lg bg-blue-50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FaMapMarkerAlt className="w-4 h-4 text-blue-600" />
+                    <h4 className="font-medium text-gray-900">Point de départ{wilayaDepart && <span className="ml-2 text-sm font-normal text-blue-700">({wilayaDepart})</span>}</h4>
+                  </div>
+                  <p className="text-sm text-gray-700">{livraison.demande_livraison?.addresse_depot || "Non spécifiée"}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-green-50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FaMapMarkerAlt className="w-4 h-4 text-green-600" />
+                    <h4 className="font-medium text-gray-900">Point de livraison{(wilaya || wilayaArrivee) && <span className="ml-2 text-sm font-normal text-green-700">({wilaya || wilayaArrivee})</span>}</h4>
+                  </div>
+                  <p className="text-sm text-gray-700">{livraison.demande_livraison?.addresse_delivery || "Non spécifiée"}</p>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Code PIN */}
           <div className="p-6 bg-white shadow-sm rounded-xl">
             <h3 className="mb-4 text-lg font-semibold text-gray-900">Code de sécurité</h3>
             <div className="p-4 text-center rounded-lg bg-primary-50">
-              <div className="inline-flex items-center justify-center w-12 h-12 mb-3 rounded-full bg-primary-100"><FaQrcode className="w-6 h-6 text-primary-600" /></div>
+              <div className="inline-flex items-center justify-center w-12 h-12 mb-3 rounded-full bg-primary-100">
+                <FaQrcode className="w-6 h-6 text-primary-600" />
+              </div>
               <p className="mb-2 text-sm text-gray-600">Code PIN pour la livraison</p>
               <div className="font-mono text-3xl font-bold tracking-wider text-primary-700">{livraison.code_pin}</div>
+              <button
+                onClick={() => copyToClipboard(livraison.code_pin, "Code PIN")}
+                className="mt-2 text-xs text-primary-600 hover:text-primary-800"
+              >
+                <FaCopy className="inline mr-1 w-3 h-3" /> Copier le code
+              </button>
               <p className="mt-2 text-xs text-gray-500">À communiquer au livreur pour vérification</p>
             </div>
           </div>
 
-          {/* Actions administrateur */}
           {isAdmin && (
             <div className="p-6 bg-white shadow-sm rounded-xl">
               <h3 className="mb-4 text-lg font-semibold text-gray-900">Actions administrateur</h3>
               <div className="space-y-3">
                 {canDeleteLivraison(livraison) && (
                   <button onClick={deleteLivraison} className="flex items-center w-full gap-3 px-4 py-3 text-left text-red-700 transition-colors rounded-lg bg-red-50 hover:bg-red-100">
-                    <FaTrashAlt className="w-5 h-5" /><div><p className="font-medium">Supprimer la livraison</p><p className="text-sm">Action irréversible</p></div>
+                    <FaTrashAlt className="w-5 h-5" />
+                    <div>
+                      <p className="font-medium">Supprimer la livraison</p>
+                      <p className="text-sm">Action irréversible</p>
+                    </div>
                   </button>
                 )}
                 {isAnnule && (<div className="p-3 bg-gray-100 rounded-lg"><p className="text-sm text-center text-gray-600">Livraison annulée - Aucune action disponible</p></div>)}
@@ -700,7 +1046,6 @@ const LivraisonDetail = () => {
         </div>
       </div>
 
-      {/* Modal d'attribution de livreur */}
       {showAssignModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
@@ -708,19 +1053,33 @@ const LivraisonDetail = () => {
             <div className="inline-block overflow-hidden text-left align-bottom transition-all transform bg-white rounded-lg shadow-xl sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
               <div className="px-4 pt-5 pb-4 bg-white sm:p-6 sm:pb-4">
                 <div className="sm:flex sm:items-start">
-                  <div className="flex items-center justify-center flex-shrink-0 w-12 h-12 mx-auto bg-blue-100 rounded-full sm:mx-0 sm:h-10 sm:w-10"><FaUserPlus className="w-6 h-6 text-blue-600" /></div>
+                  <div className="flex items-center justify-center flex-shrink-0 w-12 h-12 mx-auto bg-blue-100 rounded-full sm:mx-0 sm:h-10 sm:w-10">
+                    <FaUserPlus className="w-6 h-6 text-blue-600" />
+                  </div>
                   <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                    <h3 className="text-lg font-medium leading-6 text-gray-900">{livraison[`livreur_${assignType}`] ? `Changer le livreur ${assignType}` : `Attribuer un livreur ${assignType}`}</h3>
+                    <h3 className="text-lg font-medium leading-6 text-gray-900">
+                      {livraison[`livreur_${assignType}`] ? `Changer le livreur ${assignType}` : `Attribuer un livreur ${assignType}`}
+                    </h3>
                     <p className="mt-2 text-sm text-gray-500">
                       {assignType === "distributeur" 
                         ? (isDepotClient ? "Le distributeur peut être attribué ou changé lorsque la livraison est en attente ou en transit" : "Le distributeur ne peut être attribué ou changé que lorsque la livraison est en transit")
                         : "Le ramasseur ne peut être attribué ou changé que si le colis n'a pas encore été ramassé"}
                     </p>
                     <div className="mt-4">
-                      {livreurs.length === 0 ? (<div className="p-4 text-center text-gray-500 bg-gray-100 rounded-lg">Aucun livreur disponible</div>) : (
-                        <select value={selectedLivreur} onChange={(e) => setSelectedLivreur(e.target.value)} className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                      {livreurs.length === 0 ? (
+                        <div className="p-4 text-center text-gray-500 bg-gray-100 rounded-lg">Aucun livreur disponible</div>
+                      ) : (
+                        <select
+                          value={selectedLivreur}
+                          onChange={(e) => setSelectedLivreur(e.target.value)}
+                          className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        >
                           <option value="">Sélectionner un livreur {assignType}</option>
-                          {livreurs.map((livreur) => (<option key={livreur.value} value={livreur.value}>{livreur.label} - {livreur.telephone}</option>))}
+                          {livreurs.map((livreur) => (
+                            <option key={livreur.value} value={livreur.value}>
+                              {livreur.label} - {livreur.telephone}
+                            </option>
+                          ))}
                         </select>
                       )}
                     </div>
@@ -728,10 +1087,94 @@ const LivraisonDetail = () => {
                 </div>
               </div>
               <div className="px-4 py-3 bg-gray-50 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button type="button" onClick={assignLivreur} disabled={!selectedLivreur || livreurs.length === 0} className={`inline-flex justify-center w-full px-4 py-2 text-base font-medium text-white border border-transparent rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:ml-3 sm:w-auto sm:text-sm ${!selectedLivreur || livreurs.length === 0 ? "bg-gray-300 cursor-not-allowed" : "bg-primary-600 hover:bg-primary-700"}`}>
+                <button
+                  type="button"
+                  onClick={assignLivreur}
+                  disabled={!selectedLivreur || livreurs.length === 0}
+                  className={`inline-flex justify-center w-full px-4 py-2 text-base font-medium text-white border border-transparent rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:ml-3 sm:w-auto sm:text-sm ${!selectedLivreur || livreurs.length === 0 ? "bg-gray-300 cursor-not-allowed" : "bg-primary-600 hover:bg-primary-700"}`}
+                >
                   {livraison[`livreur_${assignType}`] ? "Changer" : "Attribuer"}
                 </button>
-                <button type="button" onClick={() => { setShowAssignModal(false); setSelectedLivreur(""); }} className="inline-flex justify-center w-full px-4 py-2 mt-3 text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                <button
+                  type="button"
+                  onClick={() => { setShowAssignModal(false); setSelectedLivreur(""); }}
+                  className="inline-flex justify-center w-full px-4 py-2 mt-3 text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPaymentStatusModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div 
+              className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" 
+              onClick={() => setShowPaymentStatusModal(false)}
+            ></div>
+            
+            <div className="inline-block overflow-hidden text-left align-bottom transition-all transform bg-white rounded-lg shadow-xl sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="px-4 pt-5 pb-4 bg-white sm:p-6 sm:pb-4">
+                <div className="sm:flex sm:items-start">
+                  <div className="flex items-center justify-center flex-shrink-0 w-12 h-12 mx-auto bg-purple-100 rounded-full sm:mx-0 sm:h-10 sm:w-10">
+                    <FaCreditCard className="w-6 h-6 text-purple-600" />
+                  </div>
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                    <h3 className="text-lg font-medium leading-6 text-gray-900">
+                      Modifier le statut de paiement
+                    </h3>
+                    <p className="mt-2 text-sm text-gray-500">
+                      Changer le statut de paiement de cette livraison.
+                    </p>
+                    
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Statut actuel
+                      </label>
+                      <div className={`mt-1 inline-flex px-3 py-1 rounded-full text-sm font-medium items-center gap-2 ${getPaymentStatusInfo(livraison.payment_status).color}`}>
+                        {React.createElement(getPaymentStatusInfo(livraison.payment_status).icon, { className: "w-4 h-4" })}
+                        {getPaymentStatusInfo(livraison.payment_status).label}
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Nouveau statut
+                      </label>
+                      <select
+                        value={selectedPaymentStatus}
+                        onChange={(e) => setSelectedPaymentStatus(e.target.value)}
+                        className="w-full p-3 mt-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      >
+                        {PAYMENT_STATUSES.map((status) => (
+                          <option key={status.value} value={status.value}>
+                            {status.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="px-4 py-3 bg-gray-50 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  onClick={updatePaymentStatus}
+                  className="inline-flex justify-center w-full px-4 py-2 text-base font-medium text-white bg-purple-600 border border-transparent rounded-md shadow-sm hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Mettre à jour
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPaymentStatusModal(false);
+                    setSelectedPaymentStatus("");
+                  }}
+                  className="inline-flex justify-center w-full px-4 py-2 mt-3 text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
                   Annuler
                 </button>
               </div>

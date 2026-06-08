@@ -1,3 +1,5 @@
+// src/pages/Auth/Login.jsx
+
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -35,7 +37,6 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // Préparer les données pour l'API
       const loginData = {
         email: credentials.email,
         password: credentials.password,
@@ -56,34 +57,70 @@ const Login = () => {
   };
 
   return (
-    <div className="flex flex-col justify-center min-h-screen py-12 bg-gradient-to-br from-primary-50 to-gray-100 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="flex justify-center">
-          {/* Logo Tawssil */}
-          <div className="flex items-center justify-center w-16 h-16 shadow-lg bg-primary-600 rounded-xl overflow-hidden">
-            <img
-              src="/images/tasswillogo.jpeg"
-              alt="Tawssil Logo"
-              className="w-full h-full object-cover"
-            />
+    <div className="flex min-h-screen">
+      {/* Section gauche - Image avec texte de bienvenue */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
+        <img
+          src="/images/tawsillalger.jpg"
+          alt="Tawssil Algérie"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        {/* Overlay pour améliorer la lisibilité du texte */}
+        <div className="absolute inset-0 bg-black bg-opacity-40"></div>
+        
+        {/* Texte de bienvenue sur l'image */}
+        <div className="relative z-10 flex flex-col justify-center px-12 text-white">
+          <h1 className="text-5xl font-bold mb-6">Bienvenue sur Tawssil</h1>
+          <p className="text-xl mb-4">Panel d'administration</p>
+          <p className="text-lg text-white text-opacity-90">
+            Gérez efficacement votre plateforme de livraison
+          </p>
+          <div className="mt-8 space-y-2">
+            <p className="flex items-center text-white text-opacity-80">
+              <span className="mr-2">✓</span> Gestion des livraisons
+            </p>
+            <p className="flex items-center text-white text-opacity-80">
+              <span className="mr-2">✓</span> Suivi des commandes
+            </p>
+            <p className="flex items-center text-white text-opacity-80">
+              <span className="mr-2">✓</span> Administration complète
+            </p>
           </div>
         </div>
-        <h2 className="mt-8 text-3xl font-bold text-center text-gray-900">
-          Tawssil Admin
-        </h2>
-        <p className="mt-2 text-sm text-center text-gray-600">
-          Panel d'administration de la plateforme de livraison
-        </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="px-4 py-8 bg-white border border-gray-100 shadow-xl sm:rounded-2xl sm:px-10">
+      {/* Section droite - Formulaire */}
+      <div 
+        className="w-full lg:w-1/2 flex items-center justify-center p-8"
+        style={{ backgroundColor: '#276476' }}
+      >
+        <div className="w-full max-w-md">
+          {/* Logo et titre */}
+          <div className="text-center mb-8">
+            <div className="flex justify-center mb-4">
+              <div className="flex items-center justify-center w-20 h-20 rounded-xl overflow-hidden bg-white">
+                <img
+                  src="/images/tasswillogo.jpeg"
+                  alt="Tawssil Logo"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </div>
+            <h2 className="text-3xl font-bold text-white">
+              Tawssil Admin
+            </h2>
+            <p className="mt-2 text-white text-opacity-80">
+              Panel d'administration de la plateforme de livraison
+            </p>
+          </div>
+
+          {/* Formulaire */}
           <form className="space-y-6" onSubmit={handleSubmit}>
             {/* Champ email */}
             <div>
               <label
                 htmlFor="email"
-                className="block mb-2 text-sm font-medium text-gray-700"
+                className="block mb-2 text-sm font-medium text-white"
               >
                 Adresse email
               </label>
@@ -99,7 +136,7 @@ const Login = () => {
                   onChange={(e) =>
                     setCredentials({ ...credentials, email: e.target.value })
                   }
-                  className="pl-10 input-field"
+                  className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f54a09] focus:border-transparent outline-none bg-white"
                   placeholder="admin@tawssil.com"
                 />
               </div>
@@ -109,7 +146,7 @@ const Login = () => {
             <div>
               <label
                 htmlFor="password"
-                className="block mb-2 text-sm font-medium text-gray-700"
+                className="block mb-2 text-sm font-medium text-white"
               >
                 Mot de passe
               </label>
@@ -125,7 +162,7 @@ const Login = () => {
                   onChange={(e) =>
                     setCredentials({ ...credentials, password: e.target.value })
                   }
-                  className="pl-10 pr-10 input-field"
+                  className="w-full px-4 py-2 pl-10 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#f54a09] focus:border-transparent outline-none bg-white"
                   placeholder="••••••••"
                 />
                 <button
@@ -149,11 +186,11 @@ const Login = () => {
                   id="remember-me"
                   name="remember-me"
                   type="checkbox"
-                  className="w-4 h-4 border-gray-300 rounded text-primary-600 focus:ring-primary-500"
+                  className="w-4 h-4 border-gray-300 rounded text-[#f54a09] focus:ring-[#f54a09]"
                 />
                 <label
                   htmlFor="remember-me"
-                  className="block ml-2 text-sm text-gray-900"
+                  className="block ml-2 text-sm text-white"
                 >
                   Se souvenir de moi
                 </label>
@@ -162,7 +199,7 @@ const Login = () => {
               <div className="text-sm">
                 <Link
                   to="/forgot-password"
-                  className="font-medium text-primary-600 hover:text-primary-500"
+                  className="font-medium text-white hover:text-[#f54a09] transition-colors"
                 >
                   Mot de passe oublié ?
                 </Link>
@@ -174,7 +211,10 @@ const Login = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex justify-center w-full px-4 py-3 text-sm font-medium text-white transition-colors duration-200 border border-transparent rounded-lg shadow-sm bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex justify-center w-full px-4 py-3 text-sm font-medium text-white transition-colors duration-200 border border-transparent rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ backgroundColor: '#f54a09' }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e04308'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f54a09'}
               >
                 {loading ? (
                   <>
@@ -189,23 +229,23 @@ const Login = () => {
           </form>
 
           {/* Informations supplémentaires */}
-          <div className="mt-6">
+          <div className="mt-8">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
+                <div className="w-full border-t border-white border-opacity-30"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 text-gray-500 bg-white">
+                <span className="px-2 text-white bg-transparent">
                   Plateforme d'administration
                 </span>
               </div>
             </div>
 
             <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
-                © {new Date().getFullYear()} Tawssil Go. Tous droits réservés.
+              <p className="text-sm text-white text-opacity-80">
+                © {new Date().getFullYear()} Tawssil. Tous droits réservés.
               </p>
-              <p className="mt-1 text-xs text-gray-500">Version 1.0.0</p>
+              <p className="mt-1 text-xs text-white text-opacity-60">Version 1.0.0</p>
             </div>
           </div>
         </div>

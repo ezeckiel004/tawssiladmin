@@ -4,7 +4,7 @@ import { toast } from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import livraisonService from "../../services/livraisonService";
 import LivraisonsTable from "../../components/Tables/LivraisonsTable";
-import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
+import { MagnifyingGlassIcon, PlusIcon } from "@heroicons/react/24/outline";
 import {
   FaTruck,
   FaBox,
@@ -18,7 +18,63 @@ import {
   FaCalendarAlt,
   FaFilter,
   FaCalendarDay,
+  FaCreditCard,
+  FaMoneyBillWave,
+  FaCalculator,
 } from "react-icons/fa";
+
+const PAYMENT_STATUS_LABELS = {
+  pending: { label: 'En attente', color: 'bg-yellow-100 text-yellow-800' },
+  available: { label: 'Disponible', color: 'bg-blue-100 text-blue-800' },
+  in_transit: { label: 'En transit', color: 'bg-purple-100 text-purple-800' },
+  paid: { label: 'Payé', color: 'bg-green-100 text-green-800' }
+};
+
+const RETURN_STATUS_OPTIONS = [
+  { value: '', label: 'Tous les retours' },
+  { value: 'chez_livreurs', label: 'Chez livreurs' },
+  { value: 'retour_en_traitement', label: 'Retour en traitement' },
+  { value: 'retour_prets', label: 'Retour prêts' },
+];
+
+// Fonction pour formater les prix
+const formatPrice = (price) => {
+  if (price === 0 || !price) return "0 DA";
+  return new Intl.NumberFormat('fr-DZ', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  }).format(price) + " DA";
+};
+
+// Fonction pour calculer les totaux globaux
+const calculateTotals = (livraisons) => {
+  let totalLivraisonPrix = 0;
+  let totalColisPrix = 0;
+  let totalLivraisonGratuite = 0;
+
+  livraisons.forEach((livraison) => {
+    const prixLivraison = parseFloat(livraison?.prix_livraison || livraison?.demande_livraison?.prix || 0);
+    const prixColis = parseFloat(livraison?.prix_colis || livraison?.demande_livraison?.colis?.colis_prix || 0);
+    const isGratuite = livraison?.livraison_gratuite || false;
+    
+    totalLivraisonPrix += prixLivraison;
+    totalColisPrix += prixColis;
+    
+    if (isGratuite) {
+      totalLivraisonGratuite += -prixLivraison;
+    }
+  });
+
+  const totalGeneral = totalColisPrix + totalLivraisonGratuite;
+
+  return {
+    livraison: totalLivraisonPrix,
+    colis: totalColisPrix,
+    livraisonGratuite: totalLivraisonGratuite,
+    general: totalGeneral,
+    count: livraisons.length,
+  };
+};
 
 const LivraisonsList = () => {
   const [livraisons, setLivraisons] = useState([]);
@@ -36,12 +92,25 @@ const LivraisonsList = () => {
     livre: 0,
     annule: 0,
     en_cours: 0,
-    depot_client: 0, // Nouveau compteur pour dépôt client
+    depot_client: 0,
+    chez_livreurs: 0,
+    retour_en_traitement: 0,
+    retour_prets: 0,
+  });
+
+  const [totals, setTotals] = useState({
+    livraison: 0,
+    colis: 0,
+    livraisonGratuite: 0,
+    general: 0,
+    count: 0,
   });
 
   // Filtres
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [returnStatusFilter, setReturnStatusFilter] = useState("");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState("");
   const [startDateFilter, setStartDateFilter] = useState("");
   const [endDateFilter, setEndDateFilter] = useState("");
   const [monthFilter, setMonthFilter] = useState("");
@@ -56,9 +125,13 @@ const LivraisonsList = () => {
     if (livraisons.length > 0) {
       applyFilters();
     }
-  }, [searchTerm, statusFilter, startDateFilter, endDateFilter, monthFilter, livraisons]);
+  }, [searchTerm, statusFilter, returnStatusFilter, paymentStatusFilter, startDateFilter, endDateFilter, monthFilter, livraisons]);
 
-  // Vérifier si une livraison est en mode dépôt client
+  useEffect(() => {
+    const newTotals = calculateTotals(filteredLivraisons);
+    setTotals(newTotals);
+  }, [filteredLivraisons]);
+
   const isDepotClient = (livraison) => {
     return livraison?.demande_livraison?.depose_au_depot === true;
   };
@@ -66,18 +139,19 @@ const LivraisonsList = () => {
   const fetchLivraisons = async () => {
     try {
       setLoading(true);
-      const response = await livraisonService.getAllLivraisons();
+      const response = await livraisonService.getAllLivraisonsAdmin();
       setLivraisons(response || []);
       calculateStats(response || []);
     } catch (error) {
       console.error("Erreur:", error);
       toast.error("Erreur lors du chargement des livraisons");
+      const fallbackResponse = await livraisonService.getAllLivraisons();
+      setLivraisons(fallbackResponse || []);
+      calculateStats(fallbackResponse || []);
     } finally {
       setLoading(false);
     }
   };
-
-  // ==================== FONCTIONS DE GESTION DES DATES ====================
 
   const getLivraisonDate = (livraison) => {
     let date = null;
@@ -221,8 +295,6 @@ const LivraisonsList = () => {
     return statusMap[status] || status;
   };
 
-  // ==================== FONCTIONS DE RECHERCHE ET FILTRAGE ====================
-
   const searchInObject = (obj, searchTerm) => {
     if (!searchTerm) return false;
     const term = searchTerm.toLowerCase();
@@ -252,6 +324,16 @@ const LivraisonsList = () => {
 
       if (statusFilter) {
         filtered = filtered.filter((livraison) => livraison.status === statusFilter);
+      }
+
+      if (returnStatusFilter) {
+        filtered = filtered.filter((livraison) => 
+          livraison.status === "annule" && livraison.return_status === returnStatusFilter
+        );
+      }
+
+      if (paymentStatusFilter) {
+        filtered = filtered.filter((livraison) => livraison.payment_status === paymentStatusFilter);
       }
 
       if (monthFilter) {
@@ -324,6 +406,10 @@ const LivraisonsList = () => {
             getStatusFrenchName(livraison.status),
             formatDateForSearch(livraison),
             isDepotClient(livraison) ? "dépôt client" : "",
+            PAYMENT_STATUS_LABELS[livraison.payment_status]?.label || "",
+            livraison.return_status === 'chez_livreurs' ? "chez livreurs" : "",
+            livraison.return_status === 'retour_en_traitement' ? "retour en traitement" : "",
+            livraison.return_status === 'retour_prets' ? "retour prêts" : "",
           ]
             .filter(Boolean)
             .map(String);
@@ -342,8 +428,6 @@ const LivraisonsList = () => {
     }
   };
 
-  // ==================== STATISTIQUES ====================
-
   const calculateStats = (data) => {
     const stats = {
       total: data.length,
@@ -356,11 +440,12 @@ const LivraisonsList = () => {
       annule: data.filter((l) => l.status === "annule").length,
       en_cours: data.filter((l) => !["en_attente", "livre", "annule"].includes(l.status)).length,
       depot_client: data.filter((l) => isDepotClient(l)).length,
+      chez_livreurs: data.filter((l) => l.status === "annule" && l.return_status === "chez_livreurs").length,
+      retour_en_traitement: data.filter((l) => l.status === "annule" && l.return_status === "retour_en_traitement").length,
+      retour_prets: data.filter((l) => l.status === "annule" && l.return_status === "retour_prets").length,
     };
     setStats(stats);
   };
-
-  // ==================== GESTION DES ACTIONS ====================
 
   const handleDeleteLivraison = async (id) => {
     if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette livraison ?")) {
@@ -376,22 +461,54 @@ const LivraisonsList = () => {
     }
   };
 
-  const handleCancelLivraison = async (id) => {
-    if (!window.confirm("Êtes-vous sûr de vouloir annuler cette livraison ?")) {
-      return;
-    }
-
+  const handleCancelLivraisonWithReturn = async (id, returnStatus) => {
     try {
-      await livraisonService.smartUpdateStatus(id, "annule");
+      await livraisonService.smartUpdateStatusWithReturn(id, "annule", returnStatus);
       toast.success("Livraison annulée avec succès");
       fetchLivraisons();
     } catch (error) {
-      toast.error("Erreur lors de l'annulation");
+      console.error("Erreur lors de l'annulation:", error);
+      toast.error(error.response?.data?.message || "Erreur lors de l'annulation");
+      throw error;
+    }
+  };
+
+  const handleUpdateReturnStatus = async (id, returnStatus) => {
+    try {
+      await livraisonService.updateReturnStatus(id, returnStatus);
+      toast.success("Statut de retour mis à jour avec succès");
+      fetchLivraisons();
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour:", error);
+      toast.error("Erreur lors de la mise à jour du statut de retour");
+      throw error;
+    }
+  };
+
+  // ⭐ FONCTION POUR METTRE À JOUR LE STATUT DE PAIEMENT
+  const handleUpdatePaymentStatus = async (id, newPaymentStatus) => {
+    try {
+      await livraisonService.smartUpdatePaymentStatus(id, newPaymentStatus);
+      toast.success("Statut de paiement mis à jour avec succès");
+      await fetchLivraisons();
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour:", error);
+      toast.error(error.response?.data?.message || "Erreur lors de la mise à jour du statut de paiement");
+      throw error;
     }
   };
 
   const handleViewDetail = (id) => {
     navigate(`/livraisons/${id}`);
+  };
+
+  const handleEditLivraison = (id, e) => {
+    if (e) e.stopPropagation();
+    navigate(`/livraisons/edit/${id}`);
+  };
+
+  const handleCreateLivraison = () => {
+    navigate("/livraisons/create");
   };
 
   const handleExport = async (format = "pdf") => {
@@ -401,6 +518,7 @@ const LivraisonsList = () => {
       const exportParams = {
         search: searchTerm,
         status: statusFilter,
+        returnStatus: returnStatusFilter,
         startDate: startDateFilter,
         endDate: endDateFilter,
         month: monthFilter,
@@ -423,13 +541,16 @@ const LivraisonsList = () => {
   const resetAllFilters = () => {
     setSearchTerm("");
     setStatusFilter("");
+    setReturnStatusFilter("");
+    setPaymentStatusFilter("");
     setStartDateFilter("");
     setEndDateFilter("");
     setMonthFilter("");
   };
 
-  const hasActiveFilters =
-    searchTerm || statusFilter || startDateFilter || endDateFilter || monthFilter;
+  const hasActiveFilters = () => {
+    return searchTerm || statusFilter || returnStatusFilter || paymentStatusFilter || startDateFilter || endDateFilter || monthFilter;
+  };
 
   const LoadingSpinner = ({ className = "w-4 h-4" }) => (
     <div
@@ -455,48 +576,12 @@ const LivraisonsList = () => {
   };
 
   const statCards = [
-    {
-      title: "Total Livraisons",
-      value: stats.total,
-      icon: FaTruck,
-      textColor: "text-blue-500",
-      description: "Toutes les livraisons",
-    },
-    {
-      title: "En Attente",
-      value: stats.en_attente,
-      icon: FaClock,
-      textColor: "text-yellow-500",
-      description: "En attente de traitement",
-    },
-    {
-      title: "En Cours",
-      value: stats.en_cours,
-      icon: FaBox,
-      textColor: "text-orange-500",
-      description: "Livraisons en cours",
-    },
-    {
-      title: "Livrées",
-      value: stats.livre,
-      icon: FaCheckCircle,
-      textColor: "text-green-500",
-      description: "Livraisons terminées",
-    },
-    {
-      title: "Annulées",
-      value: stats.annule,
-      icon: FaExclamationTriangle,
-      textColor: "text-red-500",
-      description: "Livraisons annulées",
-    },
-    {
-      title: "Dépôt client",
-      value: stats.depot_client,
-      icon: FaBox,
-      textColor: "text-blue-500",
-      description: "Colis déposés par le client",
-    },
+    { title: "Total Livraisons", value: stats.total, icon: FaTruck, textColor: "text-blue-500", description: "Toutes les livraisons" },
+    { title: "En Attente", value: stats.en_attente, icon: FaClock, textColor: "text-yellow-500", description: "En attente de traitement" },
+    { title: "En Cours", value: stats.en_cours, icon: FaBox, textColor: "text-orange-500", description: "Livraisons en cours" },
+    { title: "Livrées", value: stats.livre, icon: FaCheckCircle, textColor: "text-green-500", description: "Livraisons terminées" },
+    { title: "Annulées", value: stats.annule, icon: FaExclamationTriangle, textColor: "text-red-500", description: "Livraisons annulées" },
+    { title: "Dépôt client", value: stats.depot_client, icon: FaBox, textColor: "text-blue-500", description: "Colis déposés" },
   ];
 
   return (
@@ -505,19 +590,19 @@ const LivraisonsList = () => {
       <div className="mb-8">
         <div className="flex flex-col justify-between md:flex-row md:items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Gestion des Livraisons
-            </h1>
+            <h1 className="text-2xl font-bold text-gray-900">Gestion des Livraisons</h1>
             <p className="text-gray-600">
-              Liste de toutes les livraisons - Recherche par ID, wilaya,
-              commune, client, téléphone, destinataire, etc.
-              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                <FaBox className="w-3 h-3 mr-1" />
-                Dépôt client = colis déposé directement
-              </span>
+              Liste de toutes les livraisons - Cliquez sur une ligne pour voir le détail du calcul
             </p>
           </div>
           <div className="flex gap-2 mt-4 md:mt-0">
+            <button
+              onClick={handleCreateLivraison}
+              className="flex items-center gap-2 px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700"
+            >
+              <PlusIcon className="w-5 h-5" />
+              Nouvelle livraison
+            </button>
             <button
               onClick={fetchLivraisons}
               disabled={loading}
@@ -532,30 +617,17 @@ const LivraisonsList = () => {
 
       {/* Cartes de statistiques */}
       <div className="mb-6">
-        <h2 className="mb-4 text-lg font-semibold text-gray-900">
-          Aperçu global
-        </h2>
+        <h2 className="mb-4 text-lg font-semibold text-gray-900">Aperçu global</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
           {statCards.map((stat, index) => (
-            <div
-              key={index}
-              className="p-4 transition-shadow duration-200 bg-white rounded-lg shadow-sm hover:shadow-md"
-            >
+            <div key={index} className="p-4 transition-shadow duration-200 bg-white rounded-lg shadow-sm hover:shadow-md">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">
-                    {stat.title}
-                  </p>
-                  <p className="mt-2 text-2xl font-bold text-gray-900">
-                    {stat.value}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {stat.description}
-                  </p>
+                  <p className="text-sm font-medium text-gray-600">{stat.title}</p>
+                  <p className="mt-2 text-2xl font-bold text-gray-900">{stat.value}</p>
+                  <p className="mt-1 text-xs text-gray-500">{stat.description}</p>
                 </div>
-                <div
-                  className={`p-3 rounded-full ${stat.textColor} bg-opacity-10`}
-                >
+                <div className={`p-3 rounded-full ${stat.textColor} bg-opacity-10`}>
                   <stat.icon className={`w-6 h-6 ${stat.textColor}`} />
                 </div>
               </div>
@@ -573,7 +645,7 @@ const LivraisonsList = () => {
                 <MagnifyingGlassIcon className="absolute w-5 h-5 text-gray-400 transform -translate-y-1/2 left-3 top-1/2" />
                 <input
                   type="text"
-                  placeholder="Rechercher... (ID, client, téléphone, wilaya, commune, destinataire, 'dépôt client', etc.)"
+                  placeholder="Rechercher..."
                   className="w-full pl-10 input-field"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -601,6 +673,34 @@ const LivraisonsList = () => {
             <div>
               <select
                 className="w-full input-field"
+                value={returnStatusFilter}
+                onChange={(e) => setReturnStatusFilter(e.target.value)}
+              >
+                {RETURN_STATUS_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <select
+                className="w-full input-field"
+                value={paymentStatusFilter}
+                onChange={(e) => setPaymentStatusFilter(e.target.value)}
+              >
+                <option value="">Tous les statuts paiement</option>
+                <option value="pending">En attente</option>
+                <option value="available">Disponible</option>
+                <option value="in_transit">En transit</option>
+                <option value="paid">Payé</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+            <div>
+              <select
+                className="w-full input-field"
                 value={monthFilter}
                 onChange={(e) => {
                   setMonthFilter(e.target.value);
@@ -612,9 +712,7 @@ const LivraisonsList = () => {
               >
                 <option value="">Tous les mois</option>
                 {generateMonthOptions().map((month) => (
-                  <option key={month.value} value={month.value}>
-                    {month.label}
-                  </option>
+                  <option key={month.value} value={month.value}>{month.label}</option>
                 ))}
               </select>
             </div>
@@ -631,7 +729,6 @@ const LivraisonsList = () => {
                     placeholder="Date début"
                   />
                 </div>
-
                 <div className="relative">
                   <FaCalendarAlt className="absolute w-4 h-4 text-gray-400 transform -translate-y-1/2 left-3 top-1/2" />
                   <input
@@ -648,13 +745,13 @@ const LivraisonsList = () => {
 
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex gap-2">
-              {hasActiveFilters && (
+              {hasActiveFilters() && (
                 <button
                   onClick={resetAllFilters}
                   className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200"
                 >
                   <FaFilter className="w-4 h-4" />
-                  Réinitialiser tous les filtres
+                  Réinitialiser les filtres
                 </button>
               )}
             </div>
@@ -670,14 +767,6 @@ const LivraisonsList = () => {
               </button>
             </div>
           </div>
-
-          {hasActiveFilters && (
-            <div className="p-3 text-sm bg-blue-50 border border-blue-200 rounded-md">
-              <p className="font-medium text-blue-800">
-                {filteredLivraisons.length} livraison(s) trouvée(s)
-              </p>
-            </div>
-          )}
         </div>
       </div>
 
@@ -687,28 +776,78 @@ const LivraisonsList = () => {
           <div className="flex items-center justify-center h-64">
             <LoadingSpinner className="w-12 h-12" />
           </div>
-        ) : filteredLivraisons.length > 0 ? (
+        ) : (
           <LivraisonsTable
             livraisons={filteredLivraisons}
             onViewDetail={handleViewDetail}
+            onEdit={handleEditLivraison}
             onDelete={handleDeleteLivraison}
-            onCancel={handleCancelLivraison}
+            onCancelWithReturn={handleCancelLivraisonWithReturn}
+            onUpdateReturnStatus={handleUpdateReturnStatus}
+            onUpdatePaymentStatus={handleUpdatePaymentStatus}
             getClientFullName={getClientFullName}
             getClientTelephone={getClientTelephone}
             getDestinataireName={getDestinataireName}
             getDestinataireTelephone={getDestinataireTelephone}
           />
-        ) : (
-          <div className="py-16 text-center">
-            <FaBox className="w-12 h-12 mx-auto text-gray-300" />
-            <h3 className="mt-4 text-lg font-medium text-gray-900">
-              {hasActiveFilters
-                ? "Aucune livraison ne correspond aux filtres"
-                : "Aucune livraison disponible"}
-            </h3>
-          </div>
         )}
       </div>
+
+      {/* Totaux généraux - EN BAS */}
+      {filteredLivraisons.length > 0 && (
+        <div className="mt-6 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <FaCalculator className="w-5 h-5 text-gray-600" />
+              <h3 className="font-semibold text-gray-900">Récapitulatif général des {totals.count} livraison(s)</h3>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div className="bg-white rounded-lg p-3 shadow-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <FaTruck className="w-4 h-4 text-blue-500" />
+                <span className="text-sm text-gray-600">Total des livraisons</span>
+              </div>
+              <div className="text-xl font-bold text-blue-600">{formatPrice(totals.livraison)}</div>
+              <div className="text-xs text-gray-400 mt-1">Somme des prix de livraison</div>
+            </div>
+            
+            <div className="bg-white rounded-lg p-3 shadow-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <FaBox className="w-4 h-4 text-purple-500" />
+                <span className="text-sm text-gray-600">Total des colis</span>
+              </div>
+              <div className="text-xl font-bold text-purple-600">{formatPrice(totals.colis)}</div>
+              <div className="text-xs text-gray-400 mt-1">Somme des valeurs des colis</div>
+            </div>
+            
+            <div className="bg-red-50 rounded-lg p-3 shadow-sm border border-red-200">
+              <div className="flex items-center gap-2 mb-1">
+                <FaMoneyBillWave className="w-4 h-4 text-red-600" />
+                <span className="text-sm font-semibold text-red-700">Total livraison gratuite</span>
+              </div>
+              <div className="text-xl font-bold text-red-600">{formatPrice(totals.livraisonGratuite)}</div>
+              <div className="text-xs text-red-600 mt-1">Valeur négative (remise)</div>
+            </div>
+            
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-3 shadow-sm border border-green-200">
+              <div className="flex items-center gap-2 mb-1">
+                <FaMoneyBillWave className="w-4 h-4 text-green-600" />
+                <span className="text-sm font-semibold text-green-700">Reste à payer</span>
+              </div>
+              <div className="text-xl font-bold text-green-700">{formatPrice(totals.general)}</div>
+              <div className="text-xs text-green-600 mt-1">
+                = Total colis + Total livraison gratuite
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-500 text-center">
+            Le reste à payer correspond à la somme des colis plus les frais de livraison (les livraisons gratuites sont soustraites automatiquement car leur valeur est négative)
+          </div>
+        </div>
+      )}
 
       {/* Modale d'export */}
       {showExportModal && (
@@ -721,54 +860,32 @@ const LivraisonsList = () => {
 
             <div className="inline-block w-full max-w-md my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
               <div className="px-6 pt-6 pb-4">
-                <h3 className="text-lg font-medium leading-6 text-gray-900">
-                  Exporter les livraisons
-                </h3>
-                <p className="mt-1 text-sm text-gray-500">
-                  {filteredLivraisons.length} livraison(s) à exporter
-                </p>
+                <h3 className="text-lg font-medium leading-6 text-gray-900">Exporter les livraisons</h3>
+                <p className="mt-1 text-sm text-gray-500">{filteredLivraisons.length} livraison(s) à exporter</p>
+
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                  <p className="text-xs font-medium text-gray-700">Aperçu des montants :</p>
+                  <div className="mt-1 space-y-1 text-xs">
+                    <p className="flex justify-between"><span>Total livraisons :</span><span className="font-medium">{formatPrice(totals.livraison)}</span></p>
+                    <p className="flex justify-between"><span>Total colis :</span><span className="font-medium">{formatPrice(totals.colis)}</span></p>
+                    <p className="flex justify-between"><span>Total livraison gratuite :</span><span className="font-medium text-red-600">{formatPrice(totals.livraisonGratuite)}</span></p>
+                    <p className="flex justify-between pt-1 border-t border-gray-200"><span className="font-semibold">Reste à payer :</span><span className="font-bold text-green-600">{formatPrice(totals.general)}</span></p>
+                    <p className="text-xs text-gray-400 mt-1">= Total colis + Total livraison gratuite</p>
+                  </div>
+                </div>
 
                 <div className="mt-4">
                   <p className="text-sm font-medium text-gray-700">Choisir le format:</p>
                   <div className="flex gap-2 mt-2">
-                    <button
-                      onClick={() => {
-                        handleExport("pdf");
-                        setShowExportModal(false);
-                      }}
-                      className="flex items-center gap-2 px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700"
-                    >
-                      <FaFilePdf /> PDF
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleExport("xlsx");
-                        setShowExportModal(false);
-                      }}
-                      className="flex items-center gap-2 px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700"
-                    >
-                      <FaFileExcel /> Excel
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleExport("csv");
-                        setShowExportModal(false);
-                      }}
-                      className="flex items-center gap-2 px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-                    >
-                      <FaFileAlt /> CSV
-                    </button>
+                    <button onClick={() => { handleExport("pdf"); setShowExportModal(false); }} className="flex items-center gap-2 px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700"><FaFilePdf /> PDF</button>
+                    <button onClick={() => { handleExport("xlsx"); setShowExportModal(false); }} className="flex items-center gap-2 px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700"><FaFileExcel /> Excel</button>
+                    <button onClick={() => { handleExport("csv"); setShowExportModal(false); }} className="flex items-center gap-2 px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"><FaFileAlt /> CSV</button>
                   </div>
                 </div>
               </div>
 
               <div className="px-6 py-4 bg-gray-50">
-                <button
-                  onClick={() => setShowExportModal(false)}
-                  className="w-full px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100"
-                >
-                  Annuler
-                </button>
+                <button onClick={() => setShowExportModal(false)} className="w-full px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100">Annuler</button>
               </div>
             </div>
           </div>

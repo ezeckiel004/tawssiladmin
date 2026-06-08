@@ -71,26 +71,30 @@ const Sidebar = () => {
     setNavettesOpen(!navettesOpen);
   };
 
+  const closeSidebar = () => {
+    setIsOpen(false);
+  };
+
+  const toggleSidebar = () => {
+    setIsOpen(!isOpen);
+  };
+
   return (
     <>
-      {/* Bouton hamburger pour mobile */}
+      {/* Bouton hamburger pour mobile - uniquement pour ouvrir */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={toggleSidebar}
         className="fixed z-50 p-2 bg-white rounded-lg shadow-md top-4 left-4 lg:hidden"
-        aria-label="Toggle menu"
+        aria-label="Open menu"
       >
-        {isOpen ? (
-          <FaTimes className="w-6 h-6 text-gray-700" />
-        ) : (
-          <FaBars className="w-6 h-6 text-gray-700" />
-        )}
+        <FaBars className="w-6 h-6 text-gray-700" />
       </button>
 
       {/* Overlay pour mobile */}
       {isOpen && (
         <div
           className="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden"
-          onClick={() => setIsOpen(false)}
+          onClick={closeSidebar}
         />
       )}
 
@@ -101,11 +105,23 @@ const Sidebar = () => {
         }`}
         style={{ overflowY: "auto", maxHeight: "100vh" }}
       >
-        <div className="flex items-center justify-between p-6 sticky top-0 bg-white z-10 border-b border-gray-100">
+        <div className="flex flex-col items-center p-6 sticky top-0 bg-white z-10 border-b border-gray-100">
+          {/* Logo */}
+          <div className="flex items-center justify-center w-16 h-16 rounded-xl overflow-hidden mb-3">
+            <img
+              src="/images/tasswillogo.jpeg"
+              alt="Tawssil Logo"
+              className="w-full h-full object-cover"
+            />
+          </div>
+          
+          {/* Texte Tawssil Admin */}
           <h2 className="text-lg font-semibold text-gray-800">Tawssil Admin</h2>
+          
+          {/* Bouton de fermeture - uniquement sur mobile et une seule fois */}
           <button
-            onClick={() => setIsOpen(false)}
-            className="p-1 lg:hidden"
+            onClick={closeSidebar}
+            className="absolute p-1 right-4 lg:hidden"
             aria-label="Close menu"
           >
             <FaTimes className="w-5 h-5 text-gray-500" />
@@ -138,7 +154,7 @@ const Sidebar = () => {
                         <NavLink
                           key={subItem.name}
                           to={subItem.href}
-                          onClick={() => setIsOpen(false)}
+                          onClick={closeSidebar}
                           className={({ isActive }) =>
                             `flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                               isActive
@@ -181,7 +197,7 @@ const Sidebar = () => {
                         <NavLink
                           key={subItem.name}
                           to={subItem.href}
-                          onClick={() => setIsOpen(false)}
+                          onClick={closeSidebar}
                           className={({ isActive }) =>
                             `flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                               isActive
@@ -204,7 +220,7 @@ const Sidebar = () => {
               <NavLink
                 key={item.name}
                 to={item.href}
-                onClick={() => setIsOpen(false)}
+                onClick={closeSidebar}
                 className={({ isActive }) =>
                   `flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
                     isActive
@@ -227,7 +243,7 @@ const Sidebar = () => {
               <span className="font-medium text-primary-700">TA</span>
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium text-gray-700">Tawssil Go</p>
+              <p className="text-sm font-medium text-gray-700">Tawssil</p>
               <p className="text-xs text-gray-500">Version 2.0.0</p>
             </div>
           </div>

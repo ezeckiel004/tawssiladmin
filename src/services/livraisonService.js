@@ -5,7 +5,6 @@ import userService from './userService';
 const livraisonService = {
   // ==================== ADMIN METHODS ====================
   
-  // Récupérer toutes les livraisons (admin)
   getAllLivraisonsAdmin: async () => {
     try {
       const response = await api.get('/admin/livraisons');
@@ -16,7 +15,6 @@ const livraisonService = {
     }
   },
 
-  // Récupérer une livraison par ID (admin)
   getLivraisonByIdAdmin: async (id) => {
     try {
       const response = await api.get(`/admin/livraisons/${id}`);
@@ -27,7 +25,6 @@ const livraisonService = {
     }
   },
 
-  // Mettre à jour le statut d'une livraison (admin)
   updateStatusAdmin: async (livraisonId, status) => {
     try {
       const response = await api.patch(`/admin/livraisons/${livraisonId}/status`, { status });
@@ -38,7 +35,18 @@ const livraisonService = {
     }
   },
 
-  // Attribuer un livreur à une livraison (admin)
+  updatePaymentStatusAdmin: async (livraisonId, paymentStatus) => {
+    try {
+      const response = await api.patch(`/admin/livraisons/${livraisonId}/payment-status`, { 
+        payment_status: paymentStatus 
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Erreur updatePaymentStatusAdmin:', error);
+      throw error;
+    }
+  },
+
   assignLivreurAdmin: async (livraisonId, livreurId, type) => {
     try {
       const response = await api.patch(`/admin/livraisons/${livraisonId}/assign-livreur`, {
@@ -52,7 +60,6 @@ const livraisonService = {
     }
   },
 
-  // Supprimer une livraison (admin)
   deleteLivraisonAdmin: async (livraisonId) => {
     try {
       const response = await api.delete(`/admin/livraisons/${livraisonId}`);
@@ -71,6 +78,7 @@ const livraisonService = {
       
       if (params.search) queryParams.append('search', params.search);
       if (params.status) queryParams.append('status', params.status);
+      if (params.returnStatus) queryParams.append('return_status', params.returnStatus);
       if (params.startDate) queryParams.append('startDate', params.startDate);
       if (params.endDate) queryParams.append('endDate', params.endDate);
       if (params.format) queryParams.append('format', params.format);
@@ -78,6 +86,7 @@ const livraisonService = {
       console.log('Export livraisons avec paramètres:', {
         search: params.search,
         status: params.status,
+        returnStatus: params.returnStatus,
         startDate: params.startDate,
         endDate: params.endDate,
         format: params.format,
@@ -150,6 +159,42 @@ const livraisonService = {
       }
       
       throw new Error(errorMessage);
+    }
+  },
+
+  // ==================== FILTRES AVANCÉS ====================
+
+  getLivraisonsWithFilters: async (filters = {}) => {
+    try {
+      const queryParams = new URLSearchParams();
+      
+      if (filters.status) queryParams.append('status', filters.status);
+      if (filters.returnStatus) queryParams.append('return_status', filters.returnStatus);
+      if (filters.paymentStatus) queryParams.append('payment_status', filters.paymentStatus);
+      if (filters.search) queryParams.append('search', filters.search);
+      if (filters.startDate) queryParams.append('startDate', filters.startDate);
+      if (filters.endDate) queryParams.append('endDate', filters.endDate);
+      
+      const queryString = queryParams.toString();
+      const url = queryString ? `/admin/livraisons?${queryString}` : '/admin/livraisons';
+      
+      const response = await api.get(url);
+      return response.data;
+    } catch (error) {
+      console.error('Erreur getLivraisonsWithFilters:', error);
+      throw error;
+    }
+  },
+
+  updateReturnStatus: async (livraisonId, returnStatus) => {
+    try {
+      const response = await api.patch(`/admin/livraisons/${livraisonId}/return-status`, {
+        return_status: returnStatus
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Erreur updateReturnStatus:', error);
+      return await livraisonService.smartUpdateStatusWithReturn(livraisonId, null, returnStatus);
     }
   },
 
@@ -258,6 +303,36 @@ const livraisonService = {
     }
   },
 
+  // ==================== PAYMENT STATUS METHODS ====================
+
+  smartUpdatePaymentStatus: async (livraisonId, paymentStatus) => {
+    try {
+      const isAdmin = livraisonService.isAdmin();
+      
+      if (isAdmin) {
+        try {
+          return await livraisonService.updatePaymentStatusAdmin(livraisonId, paymentStatus);
+        } catch (error) {
+          console.warn('Route admin échouée pour payment-status:', error);
+          throw error;
+        }
+      } else {
+        try {
+          const response = await api.patch(`/manager/livraisons/${livraisonId}/payment-status`, { 
+            payment_status: paymentStatus 
+          });
+          return response.data;
+        } catch (managerError) {
+          console.error('Route manager non disponible pour payment-status:', managerError);
+          throw managerError;
+        }
+      }
+    } catch (error) {
+      console.error('Erreur dans smartUpdatePaymentStatus:', error);
+      throw error;
+    }
+  },
+
   // ==================== PDF & IMPRESSION ====================
 
   downloadBordereauPDF: async (livraisonId) => {
@@ -283,12 +358,8 @@ const livraisonService = {
     }
   },
 
-  // ==================== NOUVELLES MÉTHODES POUR DEPOSE_AU_DEPOT ====================
+  // ==================== DEPOSE_AU_DEPOT METHODS ====================
 
-  /**
-   * Récupérer les détails complets d'une livraison (avec workflow)
-   * @param {string} id - ID de la livraison
-   */
   getLivraisonDetails: async (id) => {
     try {
       const isAdmin = livraisonService.isAdmin();
@@ -301,10 +372,6 @@ const livraisonService = {
     }
   },
 
-  /**
-   * Passer une livraison en transit (spécial dépôt client)
-   * @param {string} id - ID de la livraison
-   */
   passerEnTransit: async (id) => {
     try {
       const response = await api.post(`/admin/livraisons/${id}/passer-en-transit`);
@@ -315,28 +382,16 @@ const livraisonService = {
     }
   },
 
-  /**
-   * Vérifier si une livraison est en mode dépôt client
-   * @param {object} livraison - Objet livraison
-   */
   isDepotClient: (livraison) => {
     return livraison?.demande_livraison?.depose_au_depot === true ||
            livraison?.depose_au_depot === true;
   },
 
-  /**
-   * Obtenir le workflow d'une livraison
-   * @param {object} livraison - Objet livraison
-   */
   getWorkflowType: (livraison) => {
     const isDepot = livraisonService.isDepotClient(livraison);
     return isDepot ? 'depot_client' : 'ramassage_domicile';
   },
 
-  /**
-   * Obtenir les actions possibles pour une livraison
-   * @param {object} livraison - Objet livraison
-   */
   getActionsPossibles: (livraison) => {
     if (!livraison) return {};
     
@@ -363,10 +418,6 @@ const livraisonService = {
     }
   },
 
-  /**
-   * Obtenir les prochaines étapes recommandées
-   * @param {object} livraison - Objet livraison
-   */
   getProchainesEtapes: (livraison) => {
     if (!livraison) return [];
     
@@ -423,6 +474,148 @@ const livraisonService = {
     }
   },
 
+  // ==================== ADMIN EDIT METHODS ====================
+
+  updateLivraisonAdmin: async (id, data) => {
+    try {
+      // ✅ Le prix de livraison garde sa valeur réelle
+      // On ne modifie pas le prix même si livraison_gratuite est true
+      const response = await api.put(`/admin/livraisons/${id}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Erreur updateLivraisonAdmin:', error);
+      throw error;
+    }
+  },
+
+  getLivraisonForEdit: async (id) => {
+    try {
+      const isAdmin = livraisonService.isAdmin();
+      
+      if (!isAdmin) {
+        throw new Error('Accès non autorisé');
+      }
+      
+      const response = await api.get(`/admin/livraisons/${id}/edit`);
+      return response.data;
+    } catch (error) {
+      console.error('Erreur getLivraisonForEdit:', error);
+      throw error;
+    }
+  },
+
+  getClientsForSelect: async () => {
+    try {
+      const response = await api.get('/admin/clients/select');
+      return response.data;
+    } catch (error) {
+      console.error('Erreur getClientsForSelect:', error);
+      return [];
+    }
+  },
+
+  getLivreursForSelect: async () => {
+    try {
+      const response = await api.get('/admin/livreurs/select');
+      return response.data;
+    } catch (error) {
+      console.error('Erreur getLivreursForSelect:', error);
+      return [];
+    }
+  },
+
+  getLivraisonHistory: async (id) => {
+    try {
+      const response = await api.get(`/admin/livraisons/${id}/history`);
+      return response.data;
+    } catch (error) {
+      console.error('Erreur getLivraisonHistory:', error);
+      return [];
+    }
+  },
+
+  // ==================== STATUS UPDATE WITH RETURN ====================
+
+  smartUpdateStatusWithReturn: async (livraisonId, status, returnStatus = null) => {
+    try {
+      const isAdmin = livraisonService.isAdmin();
+      const data = {};
+      
+      if (status) {
+        data.status = status;
+      }
+      
+      if (returnStatus) {
+        data.return_status = returnStatus;
+      }
+      
+      console.log('smartUpdateStatusWithReturn appelé avec:', { livraisonId, status, returnStatus, data });
+      
+      if (isAdmin) {
+        try {
+          const response = await api.patch(`/admin/livraisons/${livraisonId}/status`, data);
+          return response.data;
+        } catch (error) {
+          console.warn('Route admin échouée pour updateStatus, fallback:', error);
+          const response = await api.patch(`/livraisons/${livraisonId}/status`, data);
+          return response.data;
+        }
+      } else {
+        const response = await api.patch(`/livraisons/${livraisonId}/status`, data);
+        return response.data;
+      }
+    } catch (error) {
+      console.error('Erreur dans smartUpdateStatusWithReturn:', error);
+      throw error;
+    }
+  },
+
+  // ==================== ADMIN CREATE METHODS ====================
+
+  createLivraisonAdmin: async (data) => {
+    try {
+      // ✅ Le prix de livraison garde sa valeur réelle
+      // On ne modifie pas le prix même si livraison_gratuite est true
+      const payload = {
+        ...data,
+        livraison_gratuite: data.livraison_gratuite || false,
+      };
+      
+      const response = await api.post('/admin/livraisons', payload);
+      return response.data;
+    } catch (error) {
+      console.error('Erreur createLivraisonAdmin:', error);
+      throw error;
+    }
+  },
+
+  getCreateFormData: async () => {
+    try {
+      const [clients, livreurs] = await Promise.all([
+        livraisonService.getClientsForSelect(),
+        livraisonService.getLivreursForSelect()
+      ]);
+      
+      return {
+        clients: clients || [],
+        livreurs: livreurs || []
+      };
+    } catch (error) {
+      console.error('Erreur getCreateFormData:', error);
+      throw error;
+    }
+  },
+
+  generateCodePin: async () => {
+    try {
+      const response = await api.get('/admin/livraisons/generate-pin');
+      return response.data.pin;
+    } catch (error) {
+      console.error('Erreur generateCodePin:', error);
+      return Math.floor(10000 + Math.random() * 90000).toString();
+    }
+  },
+
   // ==================== UTILITY METHODS ====================
 
   isAdmin: () => {
@@ -468,23 +661,7 @@ const livraisonService = {
   },
 
   smartUpdateStatus: async (livraisonId, status) => {
-    try {
-      const isAdmin = livraisonService.isAdmin();
-      
-      if (isAdmin) {
-        try {
-          return await livraisonService.updateStatusAdmin(livraisonId, status);
-        } catch (error) {
-          console.warn('Route admin échouée, fallback sur route normale:', error);
-          return await livraisonService.updateStatus(livraisonId, status);
-        }
-      } else {
-        return await livraisonService.updateStatus(livraisonId, status);
-      }
-    } catch (error) {
-      console.error('Erreur dans smartUpdateStatus:', error);
-      throw error;
-    }
+    return livraisonService.smartUpdateStatusWithReturn(livraisonId, status, null);
   },
 
   smartAssignLivreur: async (livraisonId, livreurId, type) => {
